@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
     const { data: prop, error: propError } = await supabase
       .from("props")
-      .select("id, status, locks_at")
+      .select("id, prop_type, status, locks_at")
       .eq("id", prop_id)
       .single();
 
@@ -44,31 +44,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Prop is locked" }, { status: 403 });
     }
 
-    const { error: upsertError } = await supabase
-      .from("prop_picks")
-      .upsert(
-        {
+    // NTS picks are COMMIT-ONCE: can't change after first pick
+    if (prop.prop_type === "next_team_to_score") {
+      const { data: existing } = await supabase
+        .from("prop_picks")
+        .select("id, selection")
+        .eq("prop_id", prop_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json(
+          { error: "Next Goal picks are locked once made — no switching allowed." },
+          { status: 403 }
+        );
+      }
+
+      // Only INSERT, never UPDATE, for NTS
+      const { error: insertError } = await supabase
+        .from("prop_picks")
+        .insert({
           user_id: user.id,
           prop_id,
           selection,
-        },
+        });
+
+      if (insertError) {
+        return NextResponse.json(
+          { error: insertError.message ?? "Database error saving pick" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, locked: true });
+    }
+
+    // All other prop types (H2H, PIM): upsert allowed until prop locks
+    const { error: upsertError } = await supabase
+      .from("prop_picks")
+      .upsert(
+        { user_id: user.id, prop_id, selection },
         { onConflict: "user_id,prop_id" }
       );
 
     if (upsertError) {
-      console.error("[/api/picks/prop] upsert error:", upsertError);
       return NextResponse.json(
         { error: upsertError.message ?? "Database error saving pick" },
         { status: 500 }
       );
     }
-
-    await supabase.from("activity_events").insert({
-      event_type: "pick_placed",
-      actor_id: user.id,
-      payload: { prop_id, selection, pick_kind: "prop" },
-      importance: 1,
-    });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {

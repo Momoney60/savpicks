@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
+import NtsConfirmSheet from "./NtsConfirmSheet";
 
 type Team = {
   id: string;
@@ -467,7 +468,11 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
   const [selection, setSelection] = useState<string | null>(
     existingPick ? String(existingPick.selection) : null
   );
+  const [pendingNts, setPendingNts] = useState<{ value: string; label: string } | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
+  const isNts = prop.prop_type === "next_team_to_score";
+  const ntsLocked = isNts && selection !== null;
   const options = getPropOptions(prop);
   const label = {
     h2h_player: "Grudge Match",
@@ -480,15 +485,34 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
     next_team_to_score: "Who scores next?",
   }[prop.prop_type];
 
-  async function pick(val: string) {
-    if (locked) return;
-    haptic("medium");
-    setSelection(val);
-    await fetch("/api/picks/prop", {
+  async function savePick(val: string) {
+    const res = await fetch("/api/picks/prop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prop_id: prop.id, selection: val }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setSelection(null);
+      setErrorMsg(data?.error ?? "Failed");
+      haptic("heavy");
+      setTimeout(() => setErrorMsg(null), 3500);
+      return;
+    }
+    setSelection(val);
+  }
+
+  function handleTap(val: string, label: string) {
+    if (locked) return;
+    if (ntsLocked) return;
+    if (isNts) {
+      haptic("light");
+      setPendingNts({ value: val, label });
+      return;
+    }
+    haptic("medium");
+    setSelection(val);
+    savePick(val);
   }
 
   return (
@@ -502,27 +526,31 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
           <span
             className={cn(
               "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider",
-              locked ? "bg-ink-800 text-ink-500" : "bg-brand/10 text-brand"
+              locked || ntsLocked ? "bg-ink-800 text-ink-500" : "bg-brand/10 text-brand"
             )}
           >
             +{prop.points_reward}
           </span>
-          {locked && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>}
+          {(locked || ntsLocked) && (
+            <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>
+          )}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const picked = selection === opt.value;
+          const disabled = locked || (ntsLocked && !picked);
           return (
             <button
               key={opt.value}
-              onClick={() => pick(opt.value)}
-              disabled={locked}
+              onClick={() => handleTap(opt.value, opt.label)}
+              disabled={disabled}
               className={cn(
                 "relative flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition",
                 picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60",
-                !locked && !picked && "active:scale-[0.98] active:bg-ink-800",
-                locked && "cursor-not-allowed opacity-80"
+                !disabled && !picked && "active:scale-[0.98] active:bg-ink-800",
+                disabled && !picked && "cursor-not-allowed opacity-40",
+                ntsLocked && picked && "cursor-default"
               )}
             >
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
@@ -533,13 +561,30 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
               </span>
               {picked && (
                 <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">
-                  ✓
+                  {ntsLocked ? "LOCKED" : "✓"}
                 </span>
               )}
             </button>
           );
         })}
       </div>
+      {errorMsg && (
+        <div className="mt-2 rounded-lg border border-loss/40 bg-loss/10 px-3 py-1.5 text-[11px] font-semibold text-loss">
+          {errorMsg}
+        </div>
+      )}
+      <NtsConfirmSheet
+        open={!!pendingNts}
+        teamId={pendingNts?.value ?? ""}
+        teamName={pendingNts?.label ?? ""}
+        onConfirm={() => {
+          if (!pendingNts) return;
+          setSelection(pendingNts.value);
+          savePick(pendingNts.value);
+          setPendingNts(null);
+        }}
+        onCancel={() => setPendingNts(null)}
+      />
     </div>
   );
 }
