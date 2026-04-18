@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic, bracketMultiplier } from "@/lib/utils";
 
 type Team = {
@@ -44,6 +44,8 @@ type Pick = {
 export default function BracketView({ series, myPicks }: { series: Series[]; myPicks: Pick[]; teams: Team[]; }) {
   const [round, setRound] = useState(1);
   const [optimistic, setOptimistic] = useState<Record<string, string>>({});
+  const [confirmed, setConfirmed] = useState<Set<string>>(new Set(myPicks.map(p => p.series_id)));
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const pickByTeamByRound = useMemo(() => {
     const map: Record<number, Set<string>> = { 1: new Set(), 2: new Set(), 3: new Set(), 4: new Set() };
@@ -59,14 +61,36 @@ export default function BracketView({ series, myPicks }: { series: Series[]; myP
   async function placePick(seriesId: string, teamId: string) {
     haptic("medium");
     setOptimistic((prev) => ({ ...prev, [seriesId]: teamId }));
-    const res = await fetch("/api/picks/bracket", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ series_id: seriesId, picked_team_id: teamId }),
-    });
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/picks/bracket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ series_id: seriesId, picked_team_id: teamId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        haptic("heavy");
+        setOptimistic((prev) => {
+          const next = { ...prev };
+          delete next[seriesId];
+          return next;
+        });
+        setToast({ msg: data?.error ?? `Failed (${res.status})`, ok: false });
+        setTimeout(() => setToast(null), 4000);
+        return;
+      }
+      setConfirmed((prev) => new Set(prev).add(seriesId));
+      setToast({ msg: "Pick saved ✓", ok: true });
+      setTimeout(() => setToast(null), 1500);
+    } catch (e: any) {
       haptic("heavy");
-      setOptimistic((prev) => { const next = { ...prev }; delete next[seriesId]; return next; });
+      setOptimistic((prev) => {
+        const next = { ...prev };
+        delete next[seriesId];
+        return next;
+      });
+      setToast({ msg: "Network error — try again", ok: false });
+      setTimeout(() => setToast(null), 4000);
     }
   }
 
@@ -80,6 +104,24 @@ export default function BracketView({ series, myPicks }: { series: Series[]; myP
 
   return (
     <>
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={cn(
+              "fixed left-1/2 top-safe z-[70] -translate-x-1/2 mt-3 rounded-xl border px-4 py-2.5 font-semibold shadow-lg backdrop-blur-xl text-[13px]",
+              toast.ok
+                ? "border-brand/40 bg-brand/10 text-brand"
+                : "border-loss/40 bg-loss/10 text-loss"
+            )}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="mb-5 flex rounded-xl border border-ink-700 bg-ink-850 p-1">
         {[1, 2, 3, 4].map((r) => {
           const labels = { 1: "R1", 2: "R2", 3: "CF", 4: "CUP" };
@@ -115,6 +157,7 @@ export default function BracketView({ series, myPicks }: { series: Series[]; myP
                 existingPick={existingPick ?? null}
                 getPreviewStreak={getPreviewStreak}
                 onPick={(teamId) => placePick(s.id, teamId)}
+                saveState={confirmed.has(s.id) ? "saved" : optimistic[s.id] ? "saving" : "idle"}
               />
             );
           })}
@@ -124,12 +167,13 @@ export default function BracketView({ series, myPicks }: { series: Series[]; myP
   );
 }
 
-function SeriesCard({ series, currentPick, existingPick, getPreviewStreak, onPick }: {
+function SeriesCard({ series, currentPick, existingPick, getPreviewStreak, onPick, saveState }: {
   series: Series;
   currentPick: string | null;
   existingPick: Pick | null;
   getPreviewStreak: (teamId: string, round: number) => number;
   onPick: (teamId: string) => void;
+  saveState: "idle" | "saving" | "saved";
 }) {
   const locked = series.status !== "upcoming" || (series.picks_lock_at && new Date(series.picks_lock_at) < new Date());
   const teamA = series.team_a;
@@ -203,7 +247,12 @@ function SeriesCard({ series, currentPick, existingPick, getPreviewStreak, onPic
                 {series.team_a_id === team.id ? series.wins_a : series.wins_b} wins
               </div>
               {picked && !locked && (
-                <span className="absolute top-2 right-2 text-[10px] font-bold text-brand">YOUR PICK</span>
+                <span className={cn(
+                  "absolute top-2 right-2 text-[10px] font-bold",
+                  saveState === "saved" ? "text-brand" : saveState === "saving" ? "text-pending" : "text-brand"
+                )}>
+                  {saveState === "saving" ? "SAVING…" : "✓ YOUR PICK"}
+                </span>
               )}
             </button>
           );
