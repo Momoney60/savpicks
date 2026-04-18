@@ -17,6 +17,8 @@ export default async function LivePage() {
     { data: upcomingSeries },
     { data: openProps },
     { data: myPicks },
+    { data: allPropPicks },
+    { data: users },
   ] = await Promise.all([
     supabase
       .from("games")
@@ -31,18 +33,12 @@ export default async function LivePage() {
       .lte("picks_lock_at", in48h)
       .gte("picks_lock_at", now.toISOString())
       .order("picks_lock_at"),
-    supabase
-      .from("props")
-      .select("*")
-      .in("status", ["open", "locked"])
-      .order("locks_at"),
-    supabase
-      .from("prop_picks")
-      .select("*")
-      .eq("user_id", user!.id),
+    supabase.from("props").select("*").in("status", ["open", "locked"]).order("locks_at"),
+    supabase.from("prop_picks").select("*").eq("user_id", user!.id),
+    supabase.from("prop_picks").select("user_id, prop_id, selection"),
+    supabase.from("profiles").select("id, gamertag"),
   ]);
 
-  // Synthesize pseudo-game rows from upcoming series so Live tab shows tonight's action
   const syntheticGames = (upcomingSeries ?? []).map((s: any) => ({
     id: `pending-${s.id}`,
     status: "scheduled" as const,
@@ -57,16 +53,16 @@ export default async function LivePage() {
     away_team: s.team_b,
   }));
 
-  // Real games take precedence; synthetic only fills in gaps
   const realGameSeries = new Set(
-    (games ?? [])
-      .map((g: any) => `${g.home_team_id}-${g.away_team_id}`)
+    (games ?? []).map((g: any) => `${g.home_team_id}-${g.away_team_id}`)
   );
   const filteredSynthetic = syntheticGames.filter(
     (g) => !realGameSeries.has(`${g.home_team_id}-${g.away_team_id}`)
   );
 
   const combined = [...(games ?? []), ...filteredSynthetic];
+
+  const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
 
   return (
     <main className="mx-auto max-w-md px-4 pt-safe">
@@ -75,9 +71,7 @@ export default async function LivePage() {
           <span className="h-1.5 w-1.5 rounded-full bg-live live-dot" />
           Live
         </p>
-        <h1 className="font-display text-2xl font-black tracking-tight">
-          Tonight&apos;s Action
-        </h1>
+        <h1 className="font-display text-2xl font-black tracking-tight">Tonight&apos;s Action</h1>
         <p className="mt-1 text-sm text-ink-400">
           Pregame grudge matches · Live next-goal markets
         </p>
@@ -87,6 +81,9 @@ export default async function LivePage() {
         games={combined as any}
         props={openProps ?? []}
         myPicks={myPicks ?? []}
+        allPropPicks={allPropPicks ?? []}
+        users={mappedUsers}
+        currentUserId={user!.id}
       />
     </main>
   );

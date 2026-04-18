@@ -36,9 +36,9 @@ type Prop = {
   metadata: any;
 };
 
-type PropPick = { id: string; prop_id: string; selection: any };
+type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any };
+type PublicUser = { user_id: string; gamertag: string };
 
-/** Match a prop to a game by checking if the prop's metadata references both teams */
 function propMatchesGame(prop: Prop, game: Game): boolean {
   const m = prop.metadata ?? {};
   const gameTeams = new Set([game.home_team_id, game.away_team_id]);
@@ -57,10 +57,16 @@ export default function LiveView({
   games,
   props,
   myPicks,
+  allPropPicks = [],
+  users = [],
+  currentUserId,
 }: {
   games: Game[];
   props: Prop[];
   myPicks: PropPick[];
+  allPropPicks?: PropPick[];
+  users?: PublicUser[];
+  currentUserId?: string;
 }) {
   const orderedGames = [...games].sort((a, b) => {
     const rank = (g: Game) => (g.status === "live" ? 0 : g.status === "scheduled" ? 1 : 2);
@@ -69,9 +75,7 @@ export default function LiveView({
     return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
   });
 
-  const orphanProps = props.filter(
-    (p) => !games.some((g) => propMatchesGame(p, g))
-  );
+  const orphanProps = props.filter((p) => !games.some((g) => propMatchesGame(p, g)));
 
   if (orderedGames.length === 0 && orphanProps.length === 0) {
     return (
@@ -93,6 +97,9 @@ export default function LiveView({
             game={game}
             props={gameProps}
             myPicks={myPicks}
+            allPropPicks={allPropPicks}
+            users={users}
+            currentUserId={currentUserId}
           />
         );
       })}
@@ -106,11 +113,7 @@ export default function LiveView({
           </div>
           <div className="divide-y divide-ink-700/40">
             {orphanProps.map((p) => (
-              <PropRow
-                key={p.id}
-                prop={p}
-                existingPick={myPicks.find((m) => m.prop_id === p.id)}
-              />
+              <PropRow key={p.id} prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
             ))}
           </div>
         </div>
@@ -123,10 +126,16 @@ function GameCell({
   game,
   props,
   myPicks,
+  allPropPicks,
+  users,
+  currentUserId,
 }: {
   game: Game;
   props: Prop[];
   myPicks: PropPick[];
+  allPropPicks: PropPick[];
+  users: PublicUser[];
+  currentUserId?: string;
 }) {
   const isLive = game.status === "live";
   const isFinal = game.status === "final";
@@ -136,23 +145,22 @@ function GameCell({
   const winningHome = game.home_score > game.away_score;
   const winningAway = game.away_score > game.home_score;
 
+  const ntsProps = props.filter(
+    (p) => p.prop_type === "next_team_to_score" && p.status === "open"
+  );
+
   return (
     <motion.div
       layout
       className={cn(
         "overflow-hidden rounded-3xl border bg-ink-850 shadow-lg",
-        isLive
-          ? "border-live/30 shadow-live/10"
-          : "border-ink-700/70"
+        isLive ? "border-live/30 shadow-live/10" : "border-ink-700/70"
       )}
     >
-      {/* Status strip */}
       <div
         className={cn(
           "flex items-center justify-between px-5 py-2.5",
-          isLive
-            ? "bg-gradient-to-r from-live/10 via-ink-900/40 to-transparent"
-            : "bg-ink-900/60",
+          isLive ? "bg-gradient-to-r from-live/10 via-ink-900/40 to-transparent" : "bg-ink-900/60",
           "border-b border-ink-700/50"
         )}
       >
@@ -191,7 +199,6 @@ function GameCell({
         </span>
       </div>
 
-      {/* Teams + scores */}
       <div className="px-5 py-4">
         <TeamLine
           team={away}
@@ -212,7 +219,6 @@ function GameCell({
         />
       </div>
 
-      {/* Markets section */}
       {props.length > 0 && (
         <>
           <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
@@ -225,20 +231,152 @@ function GameCell({
           </div>
           <div className="divide-y divide-ink-700/40">
             {props
-              .sort(
-                (a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]
-              )
+              .sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type])
               .map((p) => (
-                <PropRow
-                  key={p.id}
-                  prop={p}
-                  existingPick={myPicks.find((m) => m.prop_id === p.id)}
-                />
+                <PropRow key={p.id} prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
               ))}
           </div>
         </>
       )}
+
+      {ntsProps.length > 0 && users.length > 0 && (
+        <NextGoalPicksStrip
+          ntsProps={ntsProps}
+          allPropPicks={allPropPicks}
+          users={users}
+          currentUserId={currentUserId}
+          game={game}
+        />
+      )}
     </motion.div>
+  );
+}
+
+function NextGoalPicksStrip({
+  ntsProps,
+  allPropPicks,
+  users,
+  currentUserId,
+  game,
+}: {
+  ntsProps: Prop[];
+  allPropPicks: PropPick[];
+  users: PublicUser[];
+  currentUserId?: string;
+  game: Game;
+}) {
+  const propIds = new Set(ntsProps.map((p) => p.id));
+  const relevantPicks = allPropPicks.filter((p) => propIds.has(p.prop_id));
+  if (relevantPicks.length === 0) return null;
+
+  const userMap = Object.fromEntries(users.map((u) => [u.user_id, u.gamertag]));
+  const byTeam: Record<string, string[]> = {};
+  relevantPicks.forEach((p) => {
+    if (!p.user_id) return;
+    const sel = String(p.selection);
+    if (!byTeam[sel]) byTeam[sel] = [];
+    byTeam[sel].push(p.user_id);
+  });
+
+  const homeId = game.home_team_id;
+  const awayId = game.away_team_id;
+  const homeName = game.home_team?.short_name ?? homeId;
+  const awayName = game.away_team?.short_name ?? awayId;
+
+  return (
+    <div className="border-t border-ink-700/50 bg-ink-900/30 px-5 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <TeamPickGroup
+          teamId={awayId}
+          teamName={awayName}
+          userIds={byTeam[awayId] ?? []}
+          userMap={userMap}
+          currentUserId={currentUserId}
+          logoUrl={game.away_team?.logo_url}
+        />
+        <TeamPickGroup
+          teamId={homeId}
+          teamName={homeName}
+          userIds={byTeam[homeId] ?? []}
+          userMap={userMap}
+          currentUserId={currentUserId}
+          logoUrl={game.home_team?.logo_url}
+          alignRight
+        />
+      </div>
+    </div>
+  );
+}
+
+function TeamPickGroup({
+  teamId,
+  teamName,
+  userIds,
+  userMap,
+  currentUserId,
+  logoUrl,
+  alignRight,
+}: {
+  teamId: string;
+  teamName: string;
+  userIds: string[];
+  userMap: Record<string, string>;
+  currentUserId?: string;
+  logoUrl?: string | null;
+  alignRight?: boolean;
+}) {
+  const shown = userIds.slice(0, 5);
+  const more = userIds.length - shown.length;
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-1 items-center gap-2",
+        alignRight && "flex-row-reverse"
+      )}
+    >
+      {logoUrl && <img src={logoUrl} alt="" className="h-4 w-4 flex-none object-contain opacity-80" />}
+      <div className={cn("flex min-w-0 items-center gap-1.5", alignRight && "flex-row-reverse")}>
+        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">
+          {teamId}
+        </span>
+        <span className="font-mono text-[10px] tabular-nums text-ink-400">
+          {userIds.length}
+        </span>
+        {userIds.length > 0 && (
+          <div
+            className={cn(
+              "flex items-center",
+              alignRight ? "-space-x-1.5 flex-row-reverse" : "-space-x-1.5"
+            )}
+          >
+            {shown.map((uid, i) => {
+              const isMe = uid === currentUserId;
+              const initial = (userMap[uid] ?? "?").charAt(0).toUpperCase();
+              return (
+                <div
+                  key={uid}
+                  title={userMap[uid]}
+                  style={{ zIndex: 5 - i }}
+                  className={cn(
+                    "flex h-5 w-5 flex-none items-center justify-center rounded-full ring-[1.5px] text-[9px] font-black",
+                    isMe
+                      ? "bg-brand text-ink-900 ring-ink-850"
+                      : "bg-ink-700 text-ink-200 ring-ink-850"
+                  )}
+                >
+                  {initial}
+                </div>
+              );
+            })}
+            {more > 0 && (
+              <div className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-ink-800 text-[9px] font-black text-ink-400 ring-[1.5px] ring-ink-850">
+                +{more}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -263,9 +401,7 @@ function TeamLine({
   final: boolean;
   scheduled: boolean;
 }) {
-  if (!team)
-    return <div className="h-10" />;
-
+  if (!team) return <div className="h-10" />;
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -273,10 +409,7 @@ function TeamLine({
           <img
             src={team.logo_url}
             alt=""
-            className={cn(
-              "h-11 w-11 flex-none object-contain",
-              team.is_eliminated && "opacity-30 grayscale"
-            )}
+            className={cn("h-11 w-11 flex-none object-contain", team.is_eliminated && "opacity-30 grayscale")}
           />
         ) : (
           <div className="h-11 w-11 flex-none rounded-full bg-ink-700" />
@@ -290,15 +423,11 @@ function TeamLine({
           >
             {team.short_name}
           </div>
-          <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">
-            {team.id}
-          </div>
+          <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">{team.id}</div>
         </div>
       </div>
       {scheduled ? (
-        <span className="font-mono text-3xl font-light tabular-nums text-ink-700">
-          —
-        </span>
+        <span className="font-mono text-3xl font-light tabular-nums text-ink-700">—</span>
       ) : (
         <span
           className={cn(
@@ -326,10 +455,7 @@ function CountdownPill({ target }: { target: string }) {
       ? "ABOUT TO START"
       : diff < 60 * 60 * 1000
       ? `STARTS IN ${Math.ceil(diff / 60000)}M`
-      : `${new Date(target).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        })} PUCK DROP`;
+      : `${new Date(target).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} PUCK DROP`;
   return (
     <span className="font-display text-[11px] font-black uppercase tracking-[0.2em] text-ink-300">
       {label}
@@ -337,13 +463,7 @@ function CountdownPill({ target }: { target: string }) {
   );
 }
 
-function PropRow({
-  prop,
-  existingPick,
-}: {
-  prop: Prop;
-  existingPick?: PropPick;
-}) {
+function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }) {
   const [selection, setSelection] = useState<string | null>(
     existingPick ? String(existingPick.selection) : null
   );
@@ -375,27 +495,19 @@ function PropRow({
     <div className="px-5 py-3.5">
       <div className="mb-2 flex items-center justify-between">
         <div className="min-w-0">
-          <div className="font-display text-[13px] font-bold leading-tight text-ink-100">
-            {label}
-          </div>
+          <div className="font-display text-[13px] font-bold leading-tight text-ink-100">{label}</div>
           <div className="mt-0.5 truncate text-[11px] text-ink-400">{sub}</div>
         </div>
         <div className="flex items-center gap-2">
           <span
             className={cn(
               "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider",
-              locked
-                ? "bg-ink-800 text-ink-500"
-                : "bg-brand/10 text-brand"
+              locked ? "bg-ink-800 text-ink-500" : "bg-brand/10 text-brand"
             )}
           >
             +{prop.points_reward}
           </span>
-          {locked && (
-            <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">
-              🔒
-            </span>
-          )}
+          {locked && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -408,9 +520,7 @@ function PropRow({
               disabled={locked}
               className={cn(
                 "relative flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition",
-                picked
-                  ? "border-brand bg-brand/10"
-                  : "border-ink-700 bg-ink-900/60",
+                picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60",
                 !locked && !picked && "active:scale-[0.98] active:bg-ink-800",
                 locked && "cursor-not-allowed opacity-80"
               )}
@@ -418,12 +528,7 @@ function PropRow({
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
                 {opt.subtitle}
               </span>
-              <span
-                className={cn(
-                  "font-display text-[13px] font-bold",
-                  picked ? "text-brand" : "text-ink-100"
-                )}
-              >
+              <span className={cn("font-display text-[13px] font-bold", picked ? "text-brand" : "text-ink-100")}>
                 {opt.label}
               </span>
               {picked && (
@@ -443,42 +548,18 @@ function getPropOptions(prop: Prop): { value: string; label: string; subtitle: s
   switch (prop.prop_type) {
     case "h2h_player":
       return [
-        {
-          value: "a",
-          label: prop.metadata?.player_a_name ?? "Player A",
-          subtitle: prop.metadata?.player_a_team ?? "OVER",
-        },
-        {
-          value: "b",
-          label: prop.metadata?.player_b_name ?? "Player B",
-          subtitle: prop.metadata?.player_b_team ?? "UNDER",
-        },
+        { value: "a", label: prop.metadata?.player_a_name ?? "Player A", subtitle: prop.metadata?.player_a_team ?? "A" },
+        { value: "b", label: prop.metadata?.player_b_name ?? "Player B", subtitle: prop.metadata?.player_b_team ?? "B" },
       ];
     case "game_total_pim":
       return [
-        {
-          value: "over",
-          label: `Over ${prop.metadata?.line ?? "—"}`,
-          subtitle: "O/U",
-        },
-        {
-          value: "under",
-          label: `Under ${prop.metadata?.line ?? "—"}`,
-          subtitle: "O/U",
-        },
+        { value: "over", label: `Over ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
+        { value: "under", label: `Under ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
       ];
     case "next_team_to_score":
       return [
-        {
-          value: prop.metadata?.home_team_id ?? "HOME",
-          label: prop.metadata?.home_team_name ?? "Home",
-          subtitle: "HOME",
-        },
-        {
-          value: prop.metadata?.away_team_id ?? "AWAY",
-          label: prop.metadata?.away_team_name ?? "Away",
-          subtitle: "AWAY",
-        },
+        { value: prop.metadata?.home_team_id ?? "HOME", label: prop.metadata?.home_team_name ?? "Home", subtitle: "HOME" },
+        { value: prop.metadata?.away_team_id ?? "AWAY", label: prop.metadata?.away_team_name ?? "Away", subtitle: "AWAY" },
       ];
   }
 }
