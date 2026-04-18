@@ -220,6 +220,17 @@ function GameCell({
         />
       </div>
 
+
+      {ntsProps.length > 0 && users.length > 0 && (
+        <NextGoalPicksStrip
+          ntsProps={ntsProps}
+          allPropPicks={allPropPicks}
+          users={users}
+          currentUserId={currentUserId}
+          game={game}
+        />
+      )}
+
       {props.length > 0 && (
         <>
           <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
@@ -238,16 +249,6 @@ function GameCell({
               ))}
           </div>
         </>
-      )}
-
-      {ntsProps.length > 0 && users.length > 0 && (
-        <NextGoalPicksStrip
-          ntsProps={ntsProps}
-          allPropPicks={allPropPicks}
-          users={users}
-          currentUserId={currentUserId}
-          game={game}
-        />
       )}
     </motion.div>
   );
@@ -285,7 +286,7 @@ function NextGoalPicksStrip({
   const awayName = game.away_team?.short_name ?? awayId;
 
   return (
-    <div className="border-t border-ink-700/50 bg-ink-900/30 px-5 py-2.5">
+    <div className="border-t border-ink-700/50 bg-ink-900/40 px-5 py-3">
       <div className="flex items-center justify-between gap-3">
         <TeamPickGroup
           teamId={awayId}
@@ -347,32 +348,33 @@ function TeamPickGroup({
           <div
             className={cn(
               "flex items-center",
-              alignRight ? "-space-x-1.5 flex-row-reverse" : "-space-x-1.5"
+              alignRight ? "gap-1 flex-row-reverse" : "-space-x-1.5"
             )}
           >
             {shown.map((uid, i) => {
               const isMe = uid === currentUserId;
-              const initial = (userMap[uid] ?? "?").charAt(0).toUpperCase();
+              const name = userMap[uid] ?? "?";
+              const tag = name.slice(0, 3).toUpperCase();
               return (
-                <div
+                <span
                   key={uid}
-                  title={userMap[uid]}
+                  title={name}
                   style={{ zIndex: 5 - i }}
                   className={cn(
-                    "flex h-5 w-5 flex-none items-center justify-center rounded-full ring-[1.5px] text-[9px] font-black",
+                    "flex-none rounded-md px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider",
                     isMe
-                      ? "bg-brand text-ink-900 ring-ink-850"
-                      : "bg-ink-700 text-ink-200 ring-ink-850"
+                      ? "bg-brand text-ink-900"
+                      : "bg-ink-700 text-ink-200"
                   )}
                 >
-                  {initial}
-                </div>
+                  {tag}
+                </span>
               );
             })}
             {more > 0 && (
-              <div className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-ink-800 text-[9px] font-black text-ink-400 ring-[1.5px] ring-ink-850">
+              <span className="flex-none rounded-md bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-ink-400">
                 +{more}
-              </div>
+              </span>
             )}
           </div>
         )}
