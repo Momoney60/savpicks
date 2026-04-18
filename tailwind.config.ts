@@ -34,10 +34,10 @@ const config: Config = {
         live: "#FF2D55",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        display: ["var(--font-display)", "system-ui", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
-      },
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        display: ["var(--font-geist)", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+      },,
       boxShadow: {
         card: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 10px 30px -10px rgba(0,0,0,0.6)",
         glow: "0 0 0 1px rgba(0, 229, 168, 0.2), 0 0 40px -10px rgba(0, 229, 168, 0.5)",
