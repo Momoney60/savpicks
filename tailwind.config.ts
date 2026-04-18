@@ -35,8 +35,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        display: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },,,
       boxShadow: {
         card: "0 1px 0 0 rgba(255,255,255,0.03) inset, 0 10px 30px -10px rgba(0,0,0,0.6)",
