@@ -105,6 +105,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
               <div key={p.id}>
                 <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
                 <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
+                <PropResultBanner prop={p} game={game} />
               </div>
             ))}
           </div>
@@ -318,6 +319,95 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
       {errorMsg && <div className="mt-2 rounded-lg border border-loss/40 bg-loss/10 px-3 py-1.5 text-[11px] font-semibold text-loss">{errorMsg}</div>}
     </div>
   );
+}
+
+function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
+  const isResolved = prop.status === "resolved" || prop.status === "locked" || prop.status === "void";
+  if (!isResolved || !prop.outcome) return null;
+  const outcome = prop.outcome as any;
+
+  if (prop.prop_type === "h2h_player") {
+    const aName = prop.metadata?.player_a_name ?? "A";
+    const bName = prop.metadata?.player_b_name ?? "B";
+    const aTeam = prop.metadata?.player_a_team ?? "";
+    const bTeam = prop.metadata?.player_b_team ?? "";
+    const aPts = outcome.player_a_pts ?? 0;
+    const bPts = outcome.player_b_pts ?? 0;
+    const winner = outcome.winner;
+    const isTie = winner === "tie";
+
+    return (
+      <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Result</span>
+          {isTie ? (
+            <span className="rounded-md bg-ink-700 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-ink-300">Push</span>
+          ) : (
+            <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">+5 Awarded</span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className={cn("flex-1", winner === "a" ? "" : "opacity-50")}>
+            <div className="flex items-baseline gap-1.5">
+              <span className={cn("font-display text-[14px] font-bold", winner === "a" ? "text-brand" : "text-ink-300")}>{lastName(aName)}</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{aTeam}</span>
+            </div>
+            <div className="mt-0.5 flex items-baseline gap-1">
+              <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "a" ? "text-brand" : "text-ink-400")}>{aPts}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">pts</span>
+              {winner === "a" && <span className="ml-1 text-[12px]">🏆</span>}
+            </div>
+          </div>
+          <span className="font-mono text-[10px] text-ink-600">VS</span>
+          <div className={cn("flex-1 text-right", winner === "b" ? "" : "opacity-50")}>
+            <div className="flex items-baseline justify-end gap-1.5">
+              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{bTeam}</span>
+              <span className={cn("font-display text-[14px] font-bold", winner === "b" ? "text-brand" : "text-ink-300")}>{lastName(bName)}</span>
+            </div>
+            <div className="mt-0.5 flex items-baseline justify-end gap-1">
+              {winner === "b" && <span className="mr-1 text-[12px]">🏆</span>}
+              <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "b" ? "text-brand" : "text-ink-400")}>{bPts}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">pts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (prop.prop_type === "game_total_pim") {
+    const line = parseFloat(prop.metadata?.line ?? "0");
+    const totalPim = outcome.total_pim ?? game.total_pim ?? 0;
+    const result = outcome.result;
+    const isPush = result === "push";
+    const wonLabel = result === "over" ? "OVER " + line : result === "under" ? "UNDER " + line : "PUSH";
+    return (
+      <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Result</span>
+          {isPush ? (
+            <span className="rounded-md bg-ink-700 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-ink-300">Push</span>
+          ) : (
+            <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">+5 · {wonLabel}</span>
+          )}
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">Final Total</div>
+            <div className="mt-0.5 flex items-baseline gap-1">
+              <span className="font-display text-[32px] font-black tabular-nums leading-none text-brand">{totalPim}</span>
+              <span className="font-mono text-[10px] uppercase text-ink-400">PIM</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">Line</div>
+            <div className="mt-0.5 font-display text-[16px] font-bold tabular-nums text-ink-300">{line}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 function getPropOptions(prop: Prop): { value: string; label: string; subtitle: string }[] {
