@@ -40,6 +40,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Gate /onboarding: must be logged in
+  if (pathname.startsWith("/onboarding") && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // Force onboarding: logged-in users who haven't set a gamertag get routed to /onboarding
+  if (user && (pathname.startsWith("/app") || pathname === "/")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("has_set_gamertag")
+      .eq("id", user.id)
+      .single();
+
+    if (profile && !profile.has_set_gamertag && !pathname.startsWith("/onboarding")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Gate /admin: must be logged in AND is_admin
   if (pathname.startsWith("/admin")) {
     if (!user) {
