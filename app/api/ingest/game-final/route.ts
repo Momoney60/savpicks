@@ -11,65 +11,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { game_id: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
+  const body = await request.json();
   const { game_id } = body;
-  if (!game_id) {
-    return NextResponse.json({ error: "Missing game_id" }, { status: 400 });
-  }
+  if (!game_id) return NextResponse.json({ error: "Missing game_id" }, { status: 400 });
 
-  // Fetch NHL boxscore
   const boxRes = await fetch(`https://api-web.nhle.com/v1/gamecenter/${game_id}/boxscore`);
   if (!boxRes.ok) {
-    return NextResponse.json(
-      { error: `Box fetch failed: ${boxRes.status}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Box fetch failed: ${boxRes.status}` }, { status: 500 });
   }
   const box: any = await boxRes.json();
 
-  // Verify game is final
   if (box.gameState !== "OFF" && box.gameState !== "FINAL" && box.gameState !== "OVER") {
-    return NextResponse.json({
-      ok: false,
-      message: `Game not final yet (state: ${box.gameState})`,
-    });
+    return NextResponse.json({ ok: false, message: `Game not final yet (${box.gameState})` });
   }
 
   const homeAbbrev = box.homeTeam?.abbrev;
   const awayAbbrev = box.awayTeam?.abbrev;
   const homeScore = box.homeTeam?.score ?? 0;
   const awayScore = box.awayTeam?.score ?? 0;
-  const homePIM = box.homeTeam?.pim ?? box.homeTeam?.sog ?? 0;
-  const awayPIM = box.awayTeam?.pim ?? 0;
-  const totalPIM = homePIM + awayPIM;
 
-  // Build player scoring lookup: { fullName.toLowerCase(): { goals, assists, points } }
-  const playerStats: Record<string, { points: number; team: string }> = {};
-  const collectPlayers = (teamSide: any, teamAbbrev: string) => {
-    if (!teamSide) return;
-    const groups = ["forwards", "defense", "defensemen", "goalies"];
-    for (const grp of groups) {
-      for (const p of teamSide[grp] ?? []) {
-        const name = (p.name?.default ?? "").toLowerCase().trim();
+  // Build player stats from boxscore
+  const playerStats: { name: string; team: string; goals: number; assists: number; points: number; pim: number; }[] = [];
+  const playerLookup: Record<string, { points: number; team: string; pim: number }> = {};
+
+  const collect = (side: any, abbrev: string) => {
+    if (!side) return;
+    for (const grp of ["forwards", "defense", "defensemen", "goalies"]) {
+      for (const p of side[grp] ?? []) {
+        const name = p.name?.default ?? "";
         if (!name) continue;
         const goals = p.goals ?? 0;
         const assists = p.assists ?? 0;
-        playerStats[name] = { points: goals + assists, team: teamAbbrev };
+        const pim = p.pim ?? p.penaltyMinutes ?? 0;
+        const points = goals + assists;
+        playerStats.push({ name, team: abbrev, goals, assists, points, pim });
+        playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim };
       }
     }
   };
-  collectPlayers(box.playerByGameStats?.homeTeam, homeAbbrev);
-  collectPlayers(box.playerByGameStats?.awayTeam, awayAbbrev);
+  collect(box.playerByGameStats?.homeTeam, homeAbbrev);
+  collect(box.playerByGameStats?.awayTeam, awayAbbrev);
+
+  const totalPim = playerStats.reduce((sum, p) => sum + (p.pim ?? 0), 0);
 
   const supabase = createServiceClient();
 
-  // 1. Update game row
   await supabase
     .from("games")
     .update({
@@ -78,15 +64,13 @@ export async function POST(request: Request) {
       away_score: awayScore,
       period: "Final",
       clock: null,
+      player_stats: playerStats,
+      total_pim: totalPim,
     })
     .eq("id", game_id);
 
-  // 2. Find all props attached to this game OR matching the game label
-  const labelPrefixes = [
-    `${awayAbbrev} @ ${homeAbbrev}`,
-    `${homeAbbrev} @ ${awayAbbrev}`,
-  ];
-
+  // Find props for this game
+  const labelPrefixes = [`${awayAbbrev} @ ${homeAbbrev}`, `${homeAbbrev} @ ${awayAbbrev}`];
   const { data: props } = await supabase
     .from("props")
     .select("*")
@@ -101,45 +85,30 @@ export async function POST(request: Request) {
     if (prop.prop_type === "h2h_player") {
       const aName = (prop.metadata?.player_a_name ?? "").toLowerCase().trim();
       const bName = (prop.metadata?.player_b_name ?? "").toLowerCase().trim();
-      const aPts = playerStats[aName]?.points ?? 0;
-      const bPts = playerStats[bName]?.points ?? 0;
+      const aPts = playerLookup[aName]?.points ?? 0;
+      const bPts = playerLookup[bName]?.points ?? 0;
       const winner = aPts > bPts ? "a" : bPts > aPts ? "b" : "tie";
       outcome = { winner, player_a_pts: aPts, player_b_pts: bPts };
     } else if (prop.prop_type === "game_total_pim") {
       const line = parseFloat(prop.metadata?.line ?? "0");
-      const result = totalPIM > line ? "over" : totalPIM < line ? "under" : "push";
-      outcome = { result, total_pim: totalPIM };
+      const result = totalPim > line ? "over" : totalPim < line ? "under" : "push";
+      outcome = { result, total_pim: totalPim };
     } else if (prop.prop_type === "next_team_to_score") {
-      // skip — handled live, just void any open ones
-      await supabase
-        .from("props")
-        .update({ status: "void", resolved_at: new Date().toISOString() })
-        .eq("id", prop.id);
+      await supabase.from("props").update({ status: "void", resolved_at: new Date().toISOString() }).eq("id", prop.id);
       continue;
     } else {
       continue;
     }
 
-    // Set outcome and call resolve_prop()
-    await supabase
-      .from("props")
-      .update({ outcome, status: "locked" })
-      .eq("id", prop.id);
-
+    await supabase.from("props").update({ outcome, status: "locked" }).eq("id", prop.id);
     const { error: rpcError } = await supabase.rpc("resolve_prop", { p_prop_id: prop.id });
-
-    resolved.push({
-      prop_id: prop.id,
-      type: prop.prop_type,
-      outcome,
-      error: rpcError?.message,
-    });
+    resolved.push({ prop_id: prop.id, type: prop.prop_type, outcome, error: rpcError?.message });
   }
 
   return NextResponse.json({
     ok: true,
     game_id,
-    final: { home: `${homeAbbrev} ${homeScore}`, away: `${awayAbbrev} ${awayScore}`, totalPIM },
+    final: { home: `${homeAbbrev} ${homeScore}`, away: `${awayAbbrev} ${awayScore}`, totalPIM: totalPim },
     resolved,
   });
 }

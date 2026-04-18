@@ -26,7 +26,6 @@ export async function POST(request: Request) {
 
   const supabase = createServiceClient();
 
-  // Detect goals first
   const { data: prev } = await supabase
     .from("games")
     .select("home_score, away_score")
@@ -37,16 +36,15 @@ export async function POST(request: Request) {
     Math.max((home_score ?? 0) - (prev?.home_score ?? 0), 0) +
     Math.max((away_score ?? 0) - (prev?.away_score ?? 0), 0);
 
-  // Resolve series_id from team match
   const { data: series } = await supabase
     .from("series")
     .select("id")
     .or(`and(team_a_id.eq.${home_team_id},team_b_id.eq.${away_team_id}),and(team_a_id.eq.${away_team_id},team_b_id.eq.${home_team_id})`)
     .maybeSingle();
 
-  // Fetch live box score for player stats + PIMs
   let playerStats: PlayerStat[] = [];
   let totalPim = 0;
+
   try {
     const boxRes = await fetch(`https://api-web.nhle.com/v1/gamecenter/${game_id}/boxscore`);
     if (boxRes.ok) {
@@ -59,22 +57,21 @@ export async function POST(request: Request) {
             if (!name) continue;
             const goals = p.goals ?? 0;
             const assists = p.assists ?? 0;
-            const pim = p.pim ?? 0;
+            const pim = p.pim ?? p.penaltyMinutes ?? 0;
             playerStats.push({ name, team: abbrev, goals, assists, points: goals + assists, pim });
           }
         }
       };
       collect(box.playerByGameStats?.homeTeam, home_team_id);
       collect(box.playerByGameStats?.awayTeam, away_team_id);
-      const hPim = box.homeTeam?.pim ?? 0;
-      const aPim = box.awayTeam?.pim ?? 0;
-      totalPim = hPim + aPim;
+
+      // Sum PIMs from player-level data (team-level field is unreliable)
+      totalPim = playerStats.reduce((sum, p) => sum + (p.pim ?? 0), 0);
     }
-  } catch {
-    // boxscore fetch is best-effort; if it fails we still update score
+  } catch (e) {
+    console.error("boxscore fetch failed:", e);
   }
 
-  // Upsert the game row
   const upsertPayload: any = {
     id: game_id,
     status: status ?? "live",
@@ -95,7 +92,6 @@ export async function POST(request: Request) {
     .upsert(upsertPayload, { onConflict: "id" });
 
   if (upsertError) {
-    console.error("game upsert error:", upsertError);
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
 
