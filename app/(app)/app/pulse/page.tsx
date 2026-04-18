@@ -24,7 +24,7 @@ export default async function PulsePage() {
     { data: props },
     { data: propPicks },
   ] = await Promise.all([
-    supabase.from("bracket_leaderboard").select("*").order("rank").limit(20),
+    supabase.from("bracket_leaderboard").select("*").order("rank").limit(100),
     supabase.rpc("round_prop_leaderboard", { p_round: 1 }),
     supabase
       .from("activity_events")

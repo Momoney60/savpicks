@@ -64,7 +64,7 @@ export default function LeaderboardSwitcher({
               <p className="text-[13px] text-ink-400">No points yet.</p>
             </div>
           ) : (
-            rows.slice(0, 10).map((row, i) => {
+            rows.map((row, i) => {
               const isMe = row.user_id === currentUserId;
               return (
                 <div

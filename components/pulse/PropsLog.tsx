@@ -29,7 +29,7 @@ export default function PropsLog({
   users: User[];
   currentUserId: string;
 }) {
-  const groups = props.reduce((acc, p) => {
+  const groups = props.filter((p) => p.prop_type !== "next_team_to_score").reduce((acc, p) => {
     const label = p.metadata?.game_label ?? "Ungrouped";
     if (!acc[label]) acc[label] = [];
     acc[label].push(p);

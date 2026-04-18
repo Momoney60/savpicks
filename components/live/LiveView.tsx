@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
-import NtsConfirmSheet from "./NtsConfirmSheet";
-
 type Team = {
   id: string;
   short_name: string;
@@ -76,7 +74,7 @@ export default function LiveView({
     return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
   });
 
-  const orphanProps = props.filter((p) => !games.some((g) => propMatchesGame(p, g)));
+  const orphanProps = props.filter((p) => !games.some((g) => propMatchesGame(p, g)) && p.prop_type !== "next_team_to_score");
 
   if (orderedGames.length === 0 && orphanProps.length === 0) {
     return (
@@ -91,7 +89,7 @@ export default function LiveView({
   return (
     <div className="space-y-4">
       {orderedGames.map((game) => {
-        const gameProps = props.filter((p) => propMatchesGame(p, game));
+        const gameProps = props.filter((p) => propMatchesGame(p, game) && p.prop_type !== "next_team_to_score");
         return (
           <GameCell
             key={game.id}
@@ -145,10 +143,6 @@ function GameCell({
   const home = game.home_team;
   const winningHome = game.home_score > game.away_score;
   const winningAway = game.away_score > game.home_score;
-
-  const ntsProps = props.filter(
-    (p) => p.prop_type === "next_team_to_score" && p.status === "open"
-  );
 
   return (
     <motion.div
@@ -220,17 +214,6 @@ function GameCell({
         />
       </div>
 
-
-      {ntsProps.length > 0 && users.length > 0 && (
-        <NextGoalPicksStrip
-          ntsProps={ntsProps}
-          allPropPicks={allPropPicks}
-          users={users}
-          currentUserId={currentUserId}
-          game={game}
-        />
-      )}
-
       {props.length > 0 && (
         <>
           <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
@@ -254,134 +237,7 @@ function GameCell({
   );
 }
 
-function NextGoalPicksStrip({
-  ntsProps,
-  allPropPicks,
-  users,
-  currentUserId,
-  game,
-}: {
-  ntsProps: Prop[];
-  allPropPicks: PropPick[];
-  users: PublicUser[];
-  currentUserId?: string;
-  game: Game;
-}) {
-  const propIds = new Set(ntsProps.map((p) => p.id));
-  const relevantPicks = allPropPicks.filter((p) => propIds.has(p.prop_id));
-  if (relevantPicks.length === 0) return null;
 
-  const userMap = Object.fromEntries(users.map((u) => [u.user_id, u.gamertag]));
-  const byTeam: Record<string, string[]> = {};
-  relevantPicks.forEach((p) => {
-    if (!p.user_id) return;
-    const sel = String(p.selection);
-    if (!byTeam[sel]) byTeam[sel] = [];
-    byTeam[sel].push(p.user_id);
-  });
-
-  const homeId = game.home_team_id;
-  const awayId = game.away_team_id;
-  const homeName = game.home_team?.short_name ?? homeId;
-  const awayName = game.away_team?.short_name ?? awayId;
-
-  return (
-    <div className="border-t border-ink-700/50 bg-ink-900/40 px-5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <TeamPickGroup
-          teamId={awayId}
-          teamName={awayName}
-          userIds={byTeam[awayId] ?? []}
-          userMap={userMap}
-          currentUserId={currentUserId}
-          logoUrl={game.away_team?.logo_url}
-        />
-        <TeamPickGroup
-          teamId={homeId}
-          teamName={homeName}
-          userIds={byTeam[homeId] ?? []}
-          userMap={userMap}
-          currentUserId={currentUserId}
-          logoUrl={game.home_team?.logo_url}
-          alignRight
-        />
-      </div>
-    </div>
-  );
-}
-
-function TeamPickGroup({
-  teamId,
-  teamName,
-  userIds,
-  userMap,
-  currentUserId,
-  logoUrl,
-  alignRight,
-}: {
-  teamId: string;
-  teamName: string;
-  userIds: string[];
-  userMap: Record<string, string>;
-  currentUserId?: string;
-  logoUrl?: string | null;
-  alignRight?: boolean;
-}) {
-  const shown = userIds.slice(0, 5);
-  const more = userIds.length - shown.length;
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 flex-1 items-center gap-2",
-        alignRight && "flex-row-reverse"
-      )}
-    >
-      {logoUrl && <img src={logoUrl} alt="" className="h-4 w-4 flex-none object-contain opacity-80" />}
-      <div className={cn("flex min-w-0 items-center gap-1.5", alignRight && "flex-row-reverse")}>
-        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">
-          {teamId}
-        </span>
-        <span className="font-mono text-[10px] tabular-nums text-ink-400">
-          {userIds.length}
-        </span>
-        {userIds.length > 0 && (
-          <div
-            className={cn(
-              "flex items-center",
-              alignRight ? "gap-1 flex-row-reverse" : "-space-x-1.5"
-            )}
-          >
-            {shown.map((uid, i) => {
-              const isMe = uid === currentUserId;
-              const name = userMap[uid] ?? "?";
-              const tag = name.slice(0, 3).toUpperCase();
-              return (
-                <span
-                  key={uid}
-                  title={name}
-                  style={{ zIndex: 5 - i }}
-                  className={cn(
-                    "flex-none rounded-md px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider",
-                    isMe
-                      ? "bg-brand text-ink-900"
-                      : "bg-ink-700 text-ink-200"
-                  )}
-                >
-                  {tag}
-                </span>
-              );
-            })}
-            {more > 0 && (
-              <span className="flex-none rounded-md bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-ink-400">
-                +{more}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 const PROP_ORDER: Record<string, number> = {
   next_team_to_score: 0,
@@ -470,11 +326,8 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
   const [selection, setSelection] = useState<string | null>(
     existingPick ? String(existingPick.selection) : null
   );
-  const [pendingNts, setPendingNts] = useState<{ value: string; label: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
-  const isNts = prop.prop_type === "next_team_to_score";
-  const ntsLocked = isNts && selection !== null;
   const options = getPropOptions(prop);
   const label = {
     h2h_player: "Grudge Match",
@@ -487,7 +340,10 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
     next_team_to_score: "Who scores next?",
   }[prop.prop_type];
 
-  async function savePick(val: string) {
+  async function pick(val: string) {
+    if (locked) return;
+    haptic("medium");
+    setSelection(val);
     const res = await fetch("/api/picks/prop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -495,26 +351,11 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setSelection(null);
+      setSelection(existingPick ? String(existingPick.selection) : null);
       setErrorMsg(data?.error ?? "Failed");
       haptic("heavy");
       setTimeout(() => setErrorMsg(null), 3500);
-      return;
     }
-    setSelection(val);
-  }
-
-  function handleTap(val: string, label: string) {
-    if (locked) return;
-    if (ntsLocked) return;
-    if (isNts) {
-      haptic("light");
-      setPendingNts({ value: val, label });
-      return;
-    }
-    haptic("medium");
-    setSelection(val);
-    savePick(val);
   }
 
   return (
@@ -528,31 +369,27 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
           <span
             className={cn(
               "rounded-md px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider",
-              locked || ntsLocked ? "bg-ink-800 text-ink-500" : "bg-brand/10 text-brand"
+              locked ? "bg-ink-800 text-ink-500" : "bg-brand/10 text-brand"
             )}
           >
             +{prop.points_reward}
           </span>
-          {(locked || ntsLocked) && (
-            <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>
-          )}
+          {locked && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const picked = selection === opt.value;
-          const disabled = locked || (ntsLocked && !picked);
           return (
             <button
               key={opt.value}
-              onClick={() => handleTap(opt.value, opt.label)}
-              disabled={disabled}
+              onClick={() => pick(opt.value)}
+              disabled={locked}
               className={cn(
                 "relative flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition",
                 picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60",
-                !disabled && !picked && "active:scale-[0.98] active:bg-ink-800",
-                disabled && !picked && "cursor-not-allowed opacity-40",
-                ntsLocked && picked && "cursor-default"
+                !locked && !picked && "active:scale-[0.98] active:bg-ink-800",
+                locked && "cursor-not-allowed opacity-80"
               )}
             >
               <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
@@ -562,9 +399,7 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
                 {opt.label}
               </span>
               {picked && (
-                <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">
-                  {ntsLocked ? "LOCKED" : "✓"}
-                </span>
+                <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>
               )}
             </button>
           );
@@ -575,18 +410,6 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
           {errorMsg}
         </div>
       )}
-      <NtsConfirmSheet
-        open={!!pendingNts}
-        teamId={pendingNts?.value ?? ""}
-        teamName={pendingNts?.label ?? ""}
-        onConfirm={() => {
-          if (!pendingNts) return;
-          setSelection(pendingNts.value);
-          savePick(pendingNts.value);
-          setPendingNts(null);
-        }}
-        onCancel={() => setPendingNts(null)}
-      />
     </div>
   );
 }
