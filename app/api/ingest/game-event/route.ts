@@ -11,6 +11,9 @@ export async function POST(request: Request) {
   const body = await request.json();
   const {
     game_id,
+    home_team_id,
+    away_team_id,
+    scheduled_at,
     home_score,
     away_score,
     period,
@@ -20,43 +23,53 @@ export async function POST(request: Request) {
     total_pim,
   } = body;
 
-  if (!game_id) {
-    return NextResponse.json({ error: "missing game_id" }, { status: 400 });
+  if (!game_id || !home_team_id || !away_team_id) {
+    return NextResponse.json({ error: "missing fields" }, { status: 400 });
   }
 
   const db = createServiceClient();
 
-  // Update the game row
-  const { data: prev } = await db.from("games").select("*").eq("id", game_id).single();
+  // Try to locate matching series for auto-linking
+  let seriesId: string | null = null;
+  const { data: matchingSeries } = await db
+    .from("series")
+    .select("id")
+    .in("status", ["upcoming", "live"])
+    .or(`and(team_a_id.eq.${home_team_id},team_b_id.eq.${away_team_id}),and(team_a_id.eq.${away_team_id},team_b_id.eq.${home_team_id})`)
+    .limit(1)
+    .maybeSingle();
+  if (matchingSeries) seriesId = matchingSeries.id;
 
-  await db
-    .from("games")
-    .update({
-      home_score,
-      away_score,
-      period,
-      clock,
-      status,
-      total_pim,
-      goal_events: goal_events ?? [],
-      last_updated_at: new Date().toISOString(),
-    })
-    .eq("id", game_id);
+  // Upsert the game
+  const { data: prev } = await db.from("games").select("*").eq("id", game_id).maybeSingle();
 
-  // Detect new goals (compare goal_events length)
+  const gameRow = {
+    id: game_id,
+    series_id: seriesId,
+    home_team_id,
+    away_team_id,
+    scheduled_at: scheduled_at ?? prev?.scheduled_at ?? new Date().toISOString(),
+    home_score: home_score ?? 0,
+    away_score: away_score ?? 0,
+    period: period ?? null,
+    clock: clock ?? null,
+    status: status ?? "scheduled",
+    total_pim: total_pim ?? 0,
+    goal_events: goal_events ?? [],
+    last_updated_at: new Date().toISOString(),
+  };
+
+  await db.from("games").upsert(gameRow, { onConflict: "id" });
+
+  // Detect new goals
   const prevCount = Array.isArray(prev?.goal_events) ? prev!.goal_events.length : 0;
   const newCount = Array.isArray(goal_events) ? goal_events.length : 0;
 
   if (newCount > prevCount && Array.isArray(goal_events)) {
-    // For each new goal:
-    // 1. Resolve any open next_team_to_score prop for this game/sequence
-    // 2. Emit goal_scored activity event
-    // 3. Create a fresh NTS prop for the next goal
     for (let i = prevCount; i < newCount; i++) {
       const goal = goal_events[i];
       const seq = i + 1;
 
-      // Resolve existing NTS prop for this goal sequence
       const { data: openNts } = await db
         .from("props")
         .select("id")
@@ -67,24 +80,16 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (openNts) {
-        await db
-          .from("props")
-          .update({
-            outcome: { team_id: goal.team_id },
-          })
-          .eq("id", openNts.id);
-        // Then resolve it via our function
+        await db.from("props").update({ outcome: { team_id: goal.team_id } }).eq("id", openNts.id);
         await db.rpc("resolve_prop", { p_prop_id: openNts.id });
       }
 
-      // Emit goal activity
       await db.from("activity_events").insert({
         event_type: "goal_scored",
         payload: { game_id, team_id: goal.team_id, sequence: seq },
         importance: 3,
       });
 
-      // Fan out to live-props channel so the UI refreshes
       await redis.publish(
         channels.liveProps(game_id),
         JSON.stringify({ type: "goal", sequence: seq, team_id: goal.team_id })
@@ -102,10 +107,25 @@ export async function POST(request: Request) {
         metadata: {
           game_id,
           goal_index: newCount + 1,
-          home_team_id: prev?.home_team_id,
-          away_team_id: prev?.away_team_id,
+          home_team_id,
+          away_team_id,
         },
       });
+    }
+  }
+
+  // Update series wins when game finals
+  if (status === "final" && seriesId) {
+    const homeWon = (home_score ?? 0) > (away_score ?? 0);
+    const awayWon = (away_score ?? 0) > (home_score ?? 0);
+    if (homeWon || awayWon) {
+      const { data: s } = await db.from("series").select("team_a_id, wins_a, wins_b").eq("id", seriesId).single();
+      if (s) {
+        const homeIsA = s.team_a_id === home_team_id;
+        const winsA = (s.wins_a ?? 0) + (homeWon === homeIsA ? 1 : 0);
+        const winsB = (s.wins_b ?? 0) + (awayWon === homeIsA ? 1 : 0);
+        await db.from("series").update({ wins_a: winsA, wins_b: winsB, status: "live" }).eq("id", seriesId);
+      }
     }
   }
 
