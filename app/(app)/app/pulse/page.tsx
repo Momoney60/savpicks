@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import LeaderboardTable from "@/components/pulse/LeaderboardTable";
 import ActivityFeed from "@/components/pulse/ActivityFeed";
-import PicksMatrix from "@/components/pulse/PicksMatrix";
+import PicksVertical from "@/components/pulse/PicksVertical";
 import PropsLog from "@/components/pulse/PropsLog";
 
 export const dynamic = "force-dynamic";
@@ -43,42 +43,98 @@ export default async function PulsePage() {
 
   const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
 
+  const myBracket = (bracketLb ?? []).find((r: any) => r.user_id === user!.id);
+  const myProps = (roundPropsLb ?? []).find((r: any) => r.user_id === user!.id);
+  const totalPlayers = mappedUsers.length;
+
   return (
     <main className="mx-auto max-w-md px-4 pt-safe">
-      <header className="flex items-center justify-between pt-4 pb-5">
+      <header className="flex items-center justify-between pt-4 pb-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">Welcome back</p>
-          <h1 className="font-display text-2xl font-black tracking-tight">{profile?.gamertag ?? "Picker"}</h1>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-500">
+            Cup Playoffs · Round 1
+          </p>
+          <h1 className="mt-0.5 font-display text-[28px] font-black tracking-tight text-ink-100">
+            {profile?.gamertag ?? "Picker"}
+          </h1>
         </div>
         {!profile?.is_paid && (
-          <span className="rounded-full border border-pending/30 bg-pending/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-pending">
+          <span className="rounded-full border border-pending/40 bg-pending/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-pending">
             Unpaid
           </span>
         )}
       </header>
 
-      <section className="mb-6">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-xl font-black tracking-tight">Bracket Leaderboard</h2>
-          <span className="text-[10px] text-ink-400">Winner takes main pot</span>
+      {/* Hero stats card */}
+      <div className="mb-6 overflow-hidden rounded-3xl border border-brand/15 bg-gradient-to-br from-brand/15 via-ink-850 to-ink-900 p-5 shadow-lg shadow-brand/5">
+        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.2em]">
+          <span className="text-brand">Your Position</span>
+          <span className="text-ink-500">{totalPlayers} {totalPlayers === 1 ? "player" : "players"}</span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-5xl font-black leading-none tabular-nums text-ink-100">
+                {myBracket?.rank ?? "—"}
+              </span>
+              {myBracket?.rank === 1 && (
+                <span className="text-xl">🏆</span>
+              )}
+            </div>
+            <div className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-400">
+              Bracket
+            </div>
+            <div className="text-[11px] text-ink-500">
+              {myBracket?.points ?? 0} pts
+              {(myBracket?.max_streak ?? 0) >= 2 && (
+                <span className="ml-1 font-bold text-brand">· 🔥 {myBracket.max_streak}×</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-5xl font-black leading-none tabular-nums text-ink-100">
+                {myProps?.rank ?? "—"}
+              </span>
+            </div>
+            <div className="mt-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-400">
+              R1 Props
+            </div>
+            <div className="text-[11px] text-ink-500">
+              {myProps?.points ?? 0} pts
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section className="mb-7">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="font-display text-[22px] font-black tracking-tight">Bracket</h2>
+            <p className="text-[11px] text-ink-400">Main pot · winner takes all</p>
+          </div>
         </div>
         <LeaderboardTable rows={(bracketLb ?? []) as any} unit="pts" />
       </section>
 
-      <section className="mb-6">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-xl font-black tracking-tight">Round 1 Props</h2>
-          <span className="text-[10px] text-ink-400">$100 to round winner</span>
+      <section className="mb-7">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="font-display text-[22px] font-black tracking-tight">Round 1 Props</h2>
+            <p className="text-[11px] text-ink-400">$100 to round leader</p>
+          </div>
         </div>
         <LeaderboardTable rows={(roundPropsLb ?? []) as any} unit="pts" />
       </section>
 
-      <section className="mb-6">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-xl font-black tracking-tight">Round 1 Picks</h2>
-          <span className="text-[10px] text-ink-400">Reveals at lock</span>
+      <section className="mb-7">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="font-display text-[22px] font-black tracking-tight">Round 1 Picks</h2>
+            <p className="text-[11px] text-ink-400">Reveals at lock · 8 series</p>
+          </div>
         </div>
-        <PicksMatrix
+        <PicksVertical
           series={(series ?? []) as any}
           picks={(picks ?? []) as any}
           users={mappedUsers}
@@ -86,10 +142,12 @@ export default async function PulsePage() {
         />
       </section>
 
-      <section className="mb-6">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-xl font-black tracking-tight">Round 1 Prop Bets</h2>
-          <span className="text-[10px] text-ink-400">Hidden until lock</span>
+      <section className="mb-7">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="font-display text-[22px] font-black tracking-tight">Prop Bets</h2>
+            <p className="text-[11px] text-ink-400">Hidden until lock · grouped by game</p>
+          </div>
         </div>
         <PropsLog
           props={(props ?? []) as any}
@@ -100,9 +158,11 @@ export default async function PulsePage() {
       </section>
 
       <section>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-xl font-black tracking-tight">Feed</h2>
-          <span className="text-[10px] text-ink-400">Live</span>
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <h2 className="font-display text-[22px] font-black tracking-tight">Feed</h2>
+            <p className="text-[11px] text-ink-400">Live activity</p>
+          </div>
         </div>
         <ActivityFeed events={(activity ?? []) as any} />
       </section>
