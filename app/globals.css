@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
+    "Segoe UI", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter",
+    system-ui, sans-serif;
+
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #050608;
+  color: #F2F4F8;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* iOS Safari: prevent overscroll bounce showing white */
+  overscroll-behavior: none;
+  /* iOS: support safe area insets for bottom nav */
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* iOS Safari: disable tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS: make buttons feel native on tap */
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Safe area helpers */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.5rem);
+}
+
+/* Hide scrollbars but keep scrollability (for horizontal rails) */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glow pulse for live indicators */
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 45, 85, 0.8); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 45, 85, 0); }
+}
+.live-dot {
+  animation: livePulse 1.6s ease-in-out infinite;
+}
