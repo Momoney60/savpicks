@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import LeaderboardTable from "@/components/pulse/LeaderboardTable";
 import ActivityFeed from "@/components/pulse/ActivityFeed";
 import PicksMatrix from "@/components/pulse/PicksMatrix";
+import PropsLog from "@/components/pulse/PropsLog";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export default async function PulsePage() {
     { data: series },
     { data: picks },
     { data: users },
+    { data: props },
+    { data: propPicks },
   ] = await Promise.all([
     supabase.from("bracket_leaderboard").select("*").order("rank").limit(20),
     supabase.rpc("round_prop_leaderboard", { p_round: 1 }),
@@ -34,6 +37,8 @@ export default async function PulsePage() {
       .order("bracket_slot"),
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id, is_correct, locked_at"),
     supabase.from("profiles").select("id, gamertag").order("gamertag"),
+    supabase.from("props").select("*").order("locks_at"),
+    supabase.from("prop_picks").select("user_id, prop_id, selection"),
   ]);
 
   const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
@@ -76,6 +81,19 @@ export default async function PulsePage() {
         <PicksMatrix
           series={(series ?? []) as any}
           picks={(picks ?? []) as any}
+          users={mappedUsers}
+          currentUserId={user!.id}
+        />
+      </section>
+
+      <section className="mb-6">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="font-display text-xl font-black tracking-tight">Round 1 Prop Bets</h2>
+          <span className="text-[10px] text-ink-400">Hidden until lock</span>
+        </div>
+        <PropsLog
+          props={(props ?? []) as any}
+          picks={(propPicks ?? []) as any}
           users={mappedUsers}
           currentUserId={user!.id}
         />
