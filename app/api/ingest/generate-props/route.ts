@@ -123,6 +123,30 @@ export async function POST(request: Request) {
       continue;
     }
 
+    // Ensure game row exists (props have FK to games.id)
+    const { data: seriesRow } = await supabase
+      .from("series")
+      .select("id")
+      .or(`and(team_a_id.eq.${home},team_b_id.eq.${away}),and(team_a_id.eq.${away},team_b_id.eq.${home})`)
+      .maybeSingle();
+
+    await supabase
+      .from("games")
+      .upsert({
+        id: gameId,
+        status: "scheduled",
+        home_team_id: home,
+        away_team_id: away,
+        home_score: 0,
+        away_score: 0,
+        period: null,
+        clock: null,
+        scheduled_at: lockTime,
+        series_id: seriesRow?.id ?? null,
+        player_stats: [],
+        total_pim: 0,
+      }, { onConflict: "id" });
+
     const propsToInsert: any[] = [];
 
     // --- H2H prop: top scorer home vs top scorer away ---
