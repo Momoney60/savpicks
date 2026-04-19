@@ -38,14 +38,14 @@ export default function MiniBracket({
   const scf = series.find((s) => s.round === 4);
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
-      <div className="min-w-[760px] p-3">
+    <div className="overflow-hidden rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
+      <div className="p-3">
         <div className="mb-2 text-center">
           <p className="font-display text-[9px] font-black uppercase tracking-[0.3em] text-brand">Stanley Cup</p>
           <p className="font-display text-[12px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5" style={{ height: "130px" }}>
+        <div className="grid grid-cols-7 gap-1" style={{ height: "320px" }}>
           <Column label="R1" series={westR1} myPick={myPick} seedSide="left" />
           <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
           <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
@@ -137,7 +137,7 @@ function RoundLabel({ label }: { label: string }) {
 }
 
 function EmptyCell() {
-  return <div className="h-9 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
+  return <div className="h-14 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
 }
 
 function MatchupCell({
@@ -151,7 +151,7 @@ function MatchupCell({
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
-    <div className="overflow-visible">
+    <div>
       <TeamRow
         team={series.team_a}
         seed={series.team_a_seed}
@@ -195,47 +195,49 @@ function TeamRow({
   seedSide?: "left" | "right";
   position: "top" | "bottom";
 }) {
-  if (!team) return <div className="h-5" />;
+  if (!team) return <div className="h-7" />;
   return (
     <div
       className={cn(
-        "relative flex h-5 items-center gap-1 overflow-visible border bg-ink-900/80 px-1",
+        "relative flex h-7 items-center overflow-hidden border bg-ink-900/80",
         position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
         picked && !eliminated ? "border-brand" : "border-ink-700/60"
       )}
     >
-      {seedSide === "left" && (
-        <span className="z-10 w-3 font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
-      )}
       {team.logo_url ? (
         <img
           src={team.logo_url}
           alt=""
           className={cn(
-            "absolute z-0 h-9 w-9 object-contain",
-            seedSide === "right" ? "right-0" : "left-0",
-            "-translate-y-1/2 top-1/2",
-            seedSide === "right" ? "translate-x-2" : "-translate-x-2",
+            "absolute z-0 h-12 w-12 object-contain top-1/2 -translate-y-1/2",
+            seedSide === "right"
+              ? "right-0 translate-x-3"
+              : "left-0 -translate-x-3",
             eliminated && "opacity-25 grayscale"
           )}
         />
       ) : null}
       <div
         className={cn(
-          "relative z-10 flex flex-1 items-center gap-0.5",
-          seedSide === "right" ? "justify-start pl-7" : "justify-end pr-7"
+          "relative z-10 flex w-full items-center px-1",
+          seedSide === "right" ? "justify-start" : "justify-end"
         )}
       >
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700")}
-          />
-        ))}
+        {seedSide === "left" && (
+          <span className="mr-auto pl-7 font-mono text-[8px] font-black text-ink-500/80">{seed ?? ""}</span>
+        )}
+        {seedSide === "right" && (
+          <span className="ml-auto pr-7 font-mono text-[8px] font-black text-ink-500/80">{seed ?? ""}</span>
+        )}
+        <div className={cn("flex items-center gap-0.5", seedSide === "right" ? "absolute left-1" : "absolute right-1")}>
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700/80")}
+            />
+          ))}
+        </div>
       </div>
-      {seedSide === "right" && (
-        <span className="z-10 w-3 text-right font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
-      )}
     </div>
   );
 }
