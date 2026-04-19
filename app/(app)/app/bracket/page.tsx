@@ -26,15 +26,7 @@ export default async function BracketPage() {
   return (
     <main className="mx-auto max-w-md px-4 pt-safe">
       <header className="pt-4 pb-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-brand">
-          The Bracket
-        </p>
-        <h1 className="font-display text-2xl font-black tracking-tight">
-          Pick winners. Compound streaks.
-        </h1>
         <p className="mt-1 text-sm text-ink-400">
-          Ride a team from Round 1 to the Cup for up to 8x points.
-        </p>
       </header>
 
       <div className="mb-4">

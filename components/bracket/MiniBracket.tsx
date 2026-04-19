@@ -76,7 +76,7 @@ function Column({
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
-      <div className="flex flex-1 flex-col justify-between gap-1">
+      <div className="flex flex-1 flex-col justify-between gap-2">
         {series.map((s) => (
           <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} />
         ))}
@@ -99,7 +99,7 @@ function FlexColumn({
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
-      <div className={cn("flex flex-1 flex-col gap-1", center ? "justify-center" : "justify-around")}>
+      <div className={cn("flex flex-1 flex-col gap-2", center ? "justify-center" : "justify-around")}>
         {cells.map((s, i) =>
           s ? <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} /> : <EmptyCell key={i} />
         )}
@@ -147,7 +147,7 @@ function MatchupCell({
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
-    <div>
+    <div className="space-y-1.5">
       <TeamBlock
         team={series.team_a}
         seed={series.team_a_seed}
@@ -155,7 +155,6 @@ function MatchupCell({
         won={series.winner_id === series.team_a?.id}
         eliminated={elim(series.team_a?.id)}
         picked={myPick === series.team_a?.id}
-        position="top"
       />
       <TeamBlock
         team={series.team_b}
@@ -164,7 +163,6 @@ function MatchupCell({
         won={series.winner_id === series.team_b?.id}
         eliminated={elim(series.team_b?.id)}
         picked={myPick === series.team_b?.id}
-        position="bottom"
       />
     </div>
   );
@@ -177,7 +175,6 @@ function TeamBlock({
   won,
   eliminated,
   picked,
-  position,
 }: {
   team: Team | null;
   seed: number | null;
@@ -185,7 +182,6 @@ function TeamBlock({
   won: boolean;
   eliminated: boolean;
   picked: boolean;
-  position: "top" | "bottom";
 }) {
   if (!team) return <div className="h-12" />;
 
@@ -196,22 +192,21 @@ function TeamBlock({
     : "border-ink-700/60";
 
   const stripBg = eliminated
-    ? "bg-rink-red/15 border-rink-red/30"
+    ? "bg-rink-red/15"
     : picked
-    ? "bg-brand/15 border-brand/30"
-    : "bg-ink-800 border-ink-700/40";
+    ? "bg-brand/15"
+    : "bg-ink-800";
 
   const stripText = eliminated ? "text-rink-red" : picked ? "text-brand" : "text-ink-400";
 
   return (
     <div
       className={cn(
-        "relative flex flex-col border bg-ink-900/80 overflow-hidden",
-        position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
+        "relative flex flex-col overflow-hidden rounded-md border bg-ink-900/80",
         borderClass
       )}
     >
-      <div className={cn("h-3.5 flex items-center justify-center border-b leading-none", stripBg, position === "top" && "rounded-t-[5px]")}>
+      <div className={cn("h-3.5 flex items-center justify-center leading-none", stripBg)}>
         <span className={cn("font-mono text-[8px] font-black leading-none", stripText)}>#{seed ?? "—"}</span>
       </div>
 
@@ -228,7 +223,7 @@ function TeamBlock({
         )}
       </div>
 
-      <div className={cn("h-3.5 flex items-center justify-center gap-0.5 border-t leading-none", stripBg, position === "bottom" && "rounded-b-[5px]")}>
+      <div className={cn("h-3.5 flex items-center justify-center gap-0.5 leading-none", stripBg)}>
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
