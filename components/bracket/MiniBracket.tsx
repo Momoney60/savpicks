@@ -221,7 +221,7 @@ function TeamBlock({
             src={team.logo_url}
             alt=""
             className={cn(
-              "absolute inset-0 h-full w-full scale-150 object-contain",
+              "absolute inset-0 h-full w-full scale-[2] object-contain",
               eliminated && "opacity-30"
             )}
           />
