@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import BracketView from "@/components/bracket/BracketView";
+import MiniBracket from "@/components/bracket/MiniBracket";
 
 export const dynamic = "force-dynamic";
 
@@ -32,14 +33,22 @@ export default async function BracketPage() {
           Pick winners. Compound streaks.
         </h1>
         <p className="mt-1 text-sm text-ink-400">
-          Ride a team from Round 1 to the Cup for up to 8× points.
+          Ride a team from Round 1 to the Cup for up to 8x points.
         </p>
       </header>
+
+      <div className="mb-4">
+        <MiniBracket
+          series={(series ?? []) as any}
+          myPicks={(myPicks ?? []) as any}
+        />
+      </div>
 
       <BracketView
         series={series ?? []}
         myPicks={myPicks ?? []}
         teams={teams ?? []}
+        currentUserId={user!.id}
       />
     </main>
   );
