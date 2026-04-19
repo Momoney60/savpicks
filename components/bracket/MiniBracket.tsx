@@ -42,10 +42,10 @@ export default function MiniBracket({
       <div className="min-w-[760px] p-3">
         <div className="mb-2 text-center">
           <p className="font-display text-[9px] font-black uppercase tracking-[0.3em] text-brand">Stanley Cup</p>
-          <p className="font-display text-[13px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
+          <p className="font-display text-[12px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5" style={{ height: "260px" }}>
+        <div className="grid grid-cols-7 gap-1.5" style={{ height: "130px" }}>
           <Column label="R1" series={westR1} myPick={myPick} seedSide="left" />
           <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
           <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
@@ -115,11 +115,11 @@ function CupColumn({ scf, myPick }: { scf: Series | undefined; myPick: (sid: str
     <div className="flex flex-col">
       <div className="mb-1 text-center font-mono text-[8px] font-black uppercase tracking-widest text-brand">Cup</div>
       <div className="flex flex-1 items-center justify-center">
-        <div className="w-full rounded-md border-2 border-brand/40 bg-gradient-to-b from-brand/10 to-transparent p-1.5">
-          <div className="text-center font-display text-[8px] font-black uppercase leading-tight tracking-widest text-brand">
-            Stanley<br />Cup
+        <div className="w-full rounded-md border-2 border-brand/40 bg-gradient-to-b from-brand/10 to-transparent p-1">
+          <div className="text-center font-display text-[7px] font-black uppercase leading-tight tracking-widest text-brand">
+            Cup
           </div>
-          <div className="mt-1">
+          <div className="mt-0.5">
             {scf ? <MatchupCell series={scf} myPick={myPick(scf.id)} /> : <EmptyCell />}
           </div>
         </div>
@@ -137,7 +137,7 @@ function RoundLabel({ label }: { label: string }) {
 }
 
 function EmptyCell() {
-  return <div className="h-12 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
+  return <div className="h-9 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
 }
 
 function MatchupCell({
@@ -151,7 +151,7 @@ function MatchupCell({
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
-    <div className="overflow-hidden rounded-md border border-ink-700/60 bg-ink-900/80">
+    <div className="overflow-visible">
       <TeamRow
         team={series.team_a}
         seed={series.team_a_seed}
@@ -160,8 +160,8 @@ function MatchupCell({
         eliminated={elim(series.team_a?.id)}
         picked={myPick === series.team_a?.id}
         seedSide={seedSide}
+        position="top"
       />
-      <div className="h-px bg-ink-700/40" />
       <TeamRow
         team={series.team_b}
         seed={series.team_b_seed}
@@ -170,6 +170,7 @@ function MatchupCell({
         eliminated={elim(series.team_b?.id)}
         picked={myPick === series.team_b?.id}
         seedSide={seedSide}
+        position="bottom"
       />
     </div>
   );
@@ -183,6 +184,7 @@ function TeamRow({
   eliminated,
   picked,
   seedSide,
+  position,
 }: {
   team: Team | null;
   seed: number | null;
@@ -191,33 +193,48 @@ function TeamRow({
   eliminated: boolean;
   picked: boolean;
   seedSide?: "left" | "right";
+  position: "top" | "bottom";
 }) {
-  if (!team) return <div className="h-6" />;
+  if (!team) return <div className="h-5" />;
   return (
-    <div className={cn("flex items-center gap-1 px-1 py-1", picked && !eliminated && "bg-brand/10")}>
+    <div
+      className={cn(
+        "relative flex h-5 items-center gap-1 overflow-visible border bg-ink-900/80 px-1",
+        position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
+        picked && !eliminated ? "border-brand" : "border-ink-700/60"
+      )}
+    >
       {seedSide === "left" && (
-        <span className="w-3 font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
+        <span className="z-10 w-3 font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
       )}
       {team.logo_url ? (
-        <img src={team.logo_url} alt="" className={cn("h-5 w-5 flex-none object-contain", eliminated && "opacity-25 grayscale")} />
-      ) : (
-        <div className="h-5 w-5 flex-none rounded-full bg-ink-700" />
-      )}
-      <div className="flex flex-1 items-center justify-end gap-0.5">
+        <img
+          src={team.logo_url}
+          alt=""
+          className={cn(
+            "absolute z-0 h-9 w-9 object-contain",
+            seedSide === "right" ? "right-0" : "left-0",
+            "-translate-y-1/2 top-1/2",
+            seedSide === "right" ? "translate-x-2" : "-translate-x-2",
+            eliminated && "opacity-25 grayscale"
+          )}
+        />
+      ) : null}
+      <div
+        className={cn(
+          "relative z-10 flex flex-1 items-center gap-0.5",
+          seedSide === "right" ? "justify-start pl-7" : "justify-end pr-7"
+        )}
+      >
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-300") : "bg-ink-700")}
+            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700")}
           />
         ))}
       </div>
       {seedSide === "right" && (
-        <span className="w-3 text-right font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
-      )}
-      {picked && (
-        <span className={cn("font-mono text-[7px] font-black", eliminated ? "text-loss" : "text-brand")}>
-          {eliminated ? "✗" : "✓"}
-        </span>
+        <span className="z-10 w-3 text-right font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
       )}
     </div>
   );
