@@ -1,3 +1,4 @@
+import { RinkStripes } from "@/components/shared/RinkStripes";
 export default function RulesPage() {
   return (
     <main className="mx-auto max-w-md px-5 pt-safe">
@@ -9,6 +10,7 @@ export default function RulesPage() {
           How it scores.
         </h1>
       </header>
+      <RinkStripes className="mb-4 -mx-4" />
 
       <Section title="The Bracket">
         <p>

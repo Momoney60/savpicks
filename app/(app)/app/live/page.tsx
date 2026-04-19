@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { RinkStripes } from "@/components/shared/RinkStripes";
 import LiveView from "@/components/live/LiveView";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,7 @@ export default async function LivePage() {
         <h1 className="font-display text-2xl font-black tracking-tight">Tonight&apos;s Action</h1>
         <p className="mt-1 text-sm text-ink-400">Live scores · Pregame markets · Resolved games</p>
       </header>
+      <RinkStripes className="mb-4 -mx-4" />
 
       <LiveView
         games={combined as any}
