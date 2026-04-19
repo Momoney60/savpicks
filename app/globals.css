@@ -62,3 +62,61 @@ a {
 .live-dot {
   animation: livePulse 1.6s ease-in-out infinite;
 }
+
+
+/* === Tightening pass: PS-inspired hover signature + discipline === */
+
+/* Universal interaction pattern: primary CTAs auto-lift + ring on hover.
+   Targets any button/link with bg-brand class so we don't touch components. */
+@media (hover: hover) and (pointer: fine) {
+  a[class*="bg-brand"]:not([disabled]):hover,
+  button[class*="bg-brand"]:not([disabled]):hover {
+    transform: scale(1.03);
+    box-shadow:
+      0 0 0 2px rgba(125, 211, 252, 0.55),
+      0 0 20px rgba(125, 211, 252, 0.35);
+  }
+}
+
+a[class*="bg-brand"],
+button[class*="bg-brand"] {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms ease;
+}
+
+a[class*="bg-brand"]:not([disabled]):active,
+button[class*="bg-brand"]:not([disabled]):active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Opt-in utility for any element: add class="lift-on-hover" */
+.lift-on-hover {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lift-on-hover:hover {
+    transform: scale(1.03);
+    box-shadow:
+      0 0 0 2px rgba(125, 211, 252, 0.55),
+      0 0 20px rgba(125, 211, 252, 0.35);
+  }
+}
+.lift-on-hover:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Disciplined focus ring replaces any default browser outline */
+a[class*="bg-brand"]:focus-visible,
+button[class*="bg-brand"]:focus-visible,
+.lift-on-hover:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 4px rgba(125, 211, 252, 0.8);
+}
