@@ -25,11 +25,7 @@ export default async function BracketPage() {
 
   return (
     <main className="mx-auto max-w-md px-4 pt-safe">
-      <header className="pt-4 pb-5">
-        <p className="mt-1 text-sm text-ink-400">
-      </header>
-
-      <div className="mb-4">
+      <div className="mb-4 pt-4">
         <MiniBracket
           series={(series ?? []) as any}
           myPicks={(myPicks ?? []) as any}
