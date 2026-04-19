@@ -27,16 +27,22 @@ const config: Config = {
           900: "#050608",
         },
         brand: {
-          DEFAULT: "#00E5A8",
-          50: "#E6FFF6",
+          DEFAULT: "#2E7BF6",
+          50: "#E8F0FF",
         },
-        live: "#FF2D55",
-        pending: "#FFB020",
-        loss: "#FF4D4D",
+        rink: {
+          red: "#D32F3B",
+          blue: "#2E7BF6",
+          gold: "#E8B339",
+          ice: "#E8F0FF",
+        },
+        live: "#D32F3B",
+        pending: "#E8B339",
+        loss: "#D32F3B",
       },
       boxShadow: {
         card: "0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.2)",
-        glow: "0 0 24px rgba(0, 229, 168, 0.35)",
+        glow: "0 0 24px rgba(46, 123, 246, 0.35)",
       },
       animation: {
         "live-dot": "live-dot 1.8s ease-in-out infinite",
