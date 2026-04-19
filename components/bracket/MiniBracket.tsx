@@ -46,13 +46,13 @@ export default function MiniBracket({
         </div>
 
         <div className="grid grid-cols-7 items-stretch gap-1">
-          <Column label="R1" series={westR1} myPick={myPick} spill="left" />
+          <Column label="R1" series={westR1} myPick={myPick} />
           <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
           <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
           <CupColumn scf={scf} myPick={myPick} />
           <FlexColumn label="ECF" cells={[eastCF]} myPick={myPick} center />
           <FlexColumn label="R2" cells={[eastR2[0], eastR2[1]]} myPick={myPick} />
-          <Column label="R1" series={eastR1} myPick={myPick} spill="right" />
+          <Column label="R1" series={eastR1} myPick={myPick} />
         </div>
 
         <div className="mt-2 flex items-center justify-between px-1 font-mono text-[8px] uppercase tracking-widest text-ink-500">
@@ -68,19 +68,17 @@ function Column({
   label,
   series,
   myPick,
-  spill,
 }: {
   label: string;
   series: Series[];
   myPick: (sid: string) => string | undefined;
-  spill: "left" | "right";
 }) {
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
       <div className="flex flex-1 flex-col justify-between gap-1">
         {series.map((s) => (
-          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} spill={spill} />
+          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} />
         ))}
       </div>
     </div>
@@ -143,11 +141,9 @@ function EmptyCell() {
 function MatchupCell({
   series,
   myPick,
-  spill,
 }: {
   series: Series;
   myPick?: string;
-  spill?: "left" | "right";
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
@@ -160,7 +156,6 @@ function MatchupCell({
         eliminated={elim(series.team_a?.id)}
         picked={myPick === series.team_a?.id}
         position="top"
-        spill={spill}
       />
       <TeamBlock
         team={series.team_b}
@@ -170,7 +165,6 @@ function MatchupCell({
         eliminated={elim(series.team_b?.id)}
         picked={myPick === series.team_b?.id}
         position="bottom"
-        spill={spill}
       />
     </div>
   );
@@ -184,7 +178,6 @@ function TeamBlock({
   eliminated,
   picked,
   position,
-  spill,
 }: {
   team: Team | null;
   seed: number | null;
@@ -193,7 +186,6 @@ function TeamBlock({
   eliminated: boolean;
   picked: boolean;
   position: "top" | "bottom";
-  spill?: "left" | "right";
 }) {
   if (!team) return <div className="h-12" />;
 
@@ -219,7 +211,7 @@ function TeamBlock({
         borderClass
       )}
     >
-      <div className={cn("h-3.5 flex items-center justify-center border-b leading-none", stripBg, position === "top" && "rounded-t-[5px]") }>
+      <div className={cn("h-3.5 flex items-center justify-center border-b leading-none", stripBg, position === "top" && "rounded-t-[5px]")}>
         <span className={cn("font-mono text-[8px] font-black leading-none", stripText)}>#{seed ?? "—"}</span>
       </div>
 
@@ -229,14 +221,14 @@ function TeamBlock({
             src={team.logo_url}
             alt=""
             className={cn(
-              "absolute inset-0 h-full w-full scale-[1.35] object-contain",
+              "absolute inset-0 h-full w-full scale-150 object-contain",
               eliminated && "opacity-30"
             )}
           />
         )}
       </div>
 
-      <div className={cn("h-3.5 flex items-center justify-center gap-0.5 border-t leading-none", stripBg, position === "bottom" && "rounded-b-[5px]") }>
+      <div className={cn("h-3.5 flex items-center justify-center gap-0.5 border-t leading-none", stripBg, position === "bottom" && "rounded-b-[5px]")}>
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
