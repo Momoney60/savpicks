@@ -83,10 +83,16 @@ export async function POST(request: Request) {
     let outcome: any = null;
 
     if (prop.prop_type === "h2h_player") {
-      const aName = (prop.metadata?.player_a_name ?? "").toLowerCase().trim();
-      const bName = (prop.metadata?.player_b_name ?? "").toLowerCase().trim();
-      const aPts = playerLookup[aName]?.points ?? 0;
-      const bPts = playerLookup[bName]?.points ?? 0;
+      const getLast = (full: string) => {
+        const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
+        return parts[parts.length - 1] ?? "";
+      };
+      const aLast = getLast(prop.metadata?.player_a_name ?? "");
+      const bLast = getLast(prop.metadata?.player_b_name ?? "");
+      const aEntry = Object.entries(playerLookup).find(([k]) => getLast(k) === aLast);
+      const bEntry = Object.entries(playerLookup).find(([k]) => getLast(k) === bLast);
+      const aPts = aEntry?.[1]?.points ?? 0;
+      const bPts = bEntry?.[1]?.points ?? 0;
       const winner = aPts > bPts ? "a" : bPts > aPts ? "b" : "tie";
       outcome = { winner, player_a_pts: aPts, player_b_pts: bPts };
     } else if (prop.prop_type === "game_total_pim") {

@@ -119,10 +119,17 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
 function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
   const h2hProp = props.find((p) => p.prop_type === "h2h_player");
   const pimProp = props.find((p) => p.prop_type === "game_total_pim");
-  const playerANorm = (h2hProp?.metadata?.player_a_name ?? "").toLowerCase().trim();
-  const playerBNorm = (h2hProp?.metadata?.player_b_name ?? "").toLowerCase().trim();
-  const playerA = game.player_stats?.find((p) => p.name.toLowerCase().trim() === playerANorm);
-  const playerB = game.player_stats?.find((p) => p.name.toLowerCase().trim() === playerBNorm);
+  const matchByLastName = (full: string) => {
+    const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
+    const lastName = parts[parts.length - 1];
+    if (!lastName) return undefined;
+    return game.player_stats?.find((p) => {
+      const pParts = (p.name ?? "").trim().toLowerCase().split(/\s+/);
+      return pParts[pParts.length - 1] === lastName;
+    });
+  };
+  const playerA = matchByLastName(h2hProp?.metadata?.player_a_name ?? "");
+  const playerB = matchByLastName(h2hProp?.metadata?.player_b_name ?? "");
 
   if (!h2hProp && !pimProp) return null;
 
