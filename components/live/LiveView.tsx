@@ -117,29 +117,67 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
 }
 
 function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
-  // Find h2h player names referenced in this game's props for highlighting
   const h2hProp = props.find((p) => p.prop_type === "h2h_player");
   const pimProp = props.find((p) => p.prop_type === "game_total_pim");
   const playerANorm = (h2hProp?.metadata?.player_a_name ?? "").toLowerCase().trim();
   const playerBNorm = (h2hProp?.metadata?.player_b_name ?? "").toLowerCase().trim();
-
   const playerA = game.player_stats?.find((p) => p.name.toLowerCase().trim() === playerANorm);
   const playerB = game.player_stats?.find((p) => p.name.toLowerCase().trim() === playerBNorm);
 
+  if (!h2hProp && !pimProp) return null;
+
+  const totalPim = game.total_pim ?? 0;
+  const line = pimProp ? parseFloat(pimProp.metadata?.line ?? "0") : 0;
+  const pimHighlight = pimProp && totalPim > line;
+
   return (
     <div className="border-t border-ink-700/50 bg-ink-900/40 px-5 py-3">
-      <div className="grid grid-cols-3 gap-3">
-        {h2hProp && playerA && (
-          <StatCell label={lastName(playerA.name)} sub={playerA.team} value={playerA.points} unit="pts" highlight={playerA.points > (playerB?.points ?? 0)} />
-        )}
-        {h2hProp && playerB && (
-          <StatCell label={lastName(playerB.name)} sub={playerB.team} value={playerB.points} unit="pts" highlight={playerB.points > (playerA?.points ?? 0)} />
-        )}
+      <div className="flex items-stretch gap-4">
         {pimProp && (
-          <StatCell label="Total PIM" sub={`Line ${pimProp.metadata?.line}`} value={game.total_pim ?? 0} unit="min" highlight={(game.total_pim ?? 0) > parseFloat(pimProp.metadata?.line ?? "0")} />
+          <div className="flex-1 border-r border-ink-700/40 pr-4">
+            <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+              Line {line}
+            </div>
+            <div className="font-display text-[11px] font-bold text-ink-200">Total PIM</div>
+            <div className="mt-0.5 flex items-baseline gap-1">
+              <span className={cn("font-display text-[24px] font-black tabular-nums leading-none", pimHighlight ? "text-brand" : "text-ink-100")}>
+                {totalPim}
+              </span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">min</span>
+            </div>
+          </div>
         )}
-        {!h2hProp && pimProp && (
-          <StatCell label="—" sub="" value={0} unit="" />
+
+        {h2hProp && (playerA || playerB) && (
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+              Grudge · H2H
+            </div>
+            <div className="mt-0.5 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">{playerA?.team ?? ""}</span>
+                  <span className={cn("truncate font-display text-[12px] font-bold", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-200")}>
+                    {playerA ? lastName(playerA.name) : "—"}
+                  </span>
+                </div>
+                <span className={cn("font-display text-[15px] font-black tabular-nums", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-300")}>
+                  {playerA?.points ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">{playerB?.team ?? ""}</span>
+                  <span className={cn("truncate font-display text-[12px] font-bold", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-200")}>
+                    {playerB ? lastName(playerB.name) : "—"}
+                  </span>
+                </div>
+                <span className={cn("font-display text-[15px] font-black tabular-nums", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-300")}>
+                  {playerB?.points ?? 0}
+                </span>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
