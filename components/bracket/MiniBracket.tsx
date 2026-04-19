@@ -10,60 +10,194 @@ type Series = {
   round: number;
   team_a: Team | null;
   team_b: Team | null;
+  team_a_seed: number | null;
+  team_b_seed: number | null;
   wins_a: number;
   wins_b: number;
   winner_id: string | null;
-  status: string;
 };
 
-export default function MiniBracket({ series, myPicks }: { series: Series[]; myPicks: { series_id: string; picked_team_id: string }[] }) {
-  const r1 = series.filter((s) => s.round === 1);
-  const east = r1.filter((s) => (s.conference ?? "").startsWith("E")).sort((a, b) => a.bracket_slot.localeCompare(b.bracket_slot));
-  const west = r1.filter((s) => (s.conference ?? "").startsWith("W")).sort((a, b) => a.bracket_slot.localeCompare(b.bracket_slot));
+export default function MiniBracket({
+  series,
+  myPicks,
+}: {
+  series: Series[];
+  myPicks: { series_id: string; picked_team_id: string }[];
+}) {
   const myPick = (sid: string) => myPicks.find((p) => p.series_id === sid)?.picked_team_id;
+  const isWest = (s: Series) => (s.conference ?? "").startsWith("W");
+  const isEast = (s: Series) => (s.conference ?? "").startsWith("E");
+  const bySlot = (a: Series, b: Series) => (a.bracket_slot ?? "").localeCompare(b.bracket_slot ?? "");
+
+  const westR1 = series.filter((s) => s.round === 1 && isWest(s)).sort(bySlot);
+  const eastR1 = series.filter((s) => s.round === 1 && isEast(s)).sort(bySlot);
+  const westR2 = series.filter((s) => s.round === 2 && isWest(s)).sort(bySlot);
+  const eastR2 = series.filter((s) => s.round === 2 && isEast(s)).sort(bySlot);
+  const westCF = series.find((s) => s.round === 3 && isWest(s));
+  const eastCF = series.find((s) => s.round === 3 && isEast(s));
+  const scf = series.find((s) => s.round === 4);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-700/70 bg-ink-850 p-3">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="font-display text-[10px] font-black uppercase tracking-[0.2em] text-ink-400">Round 1 Bracket</span>
-        <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">Best of 7</span>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Column label="East" series={east} myPick={myPick} />
-        <Column label="West" series={west} myPick={myPick} />
+    <div className="overflow-x-auto rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
+      <div className="min-w-[760px] p-3">
+        <div className="mb-2 text-center">
+          <p className="font-display text-[9px] font-black uppercase tracking-[0.3em] text-brand">Stanley Cup</p>
+          <p className="font-display text-[13px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1.5" style={{ height: "260px" }}>
+          <Column label="R1" series={westR1} myPick={myPick} seedSide="left" />
+          <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
+          <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
+          <CupColumn scf={scf} myPick={myPick} />
+          <FlexColumn label="ECF" cells={[eastCF]} myPick={myPick} center />
+          <FlexColumn label="R2" cells={[eastR2[0], eastR2[1]]} myPick={myPick} />
+          <Column label="R1" series={eastR1} myPick={myPick} seedSide="right" />
+        </div>
+
+        <div className="mt-2 flex items-center justify-between px-1 font-mono text-[8px] uppercase tracking-widest text-ink-500">
+          <span>West</span>
+          <span>East</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function Column({ label, series, myPick }: { label: string; series: Series[]; myPick: (sid: string) => string | undefined }) {
+function Column({
+  label,
+  series,
+  myPick,
+  seedSide,
+}: {
+  label: string;
+  series: Series[];
+  myPick: (sid: string) => string | undefined;
+  seedSide: "left" | "right";
+}) {
   return (
-    <div>
-      <div className="mb-1.5 text-center font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{label}</div>
-      <div className="space-y-1.5">
+    <div className="flex flex-col">
+      <RoundLabel label={label} />
+      <div className="flex flex-1 flex-col justify-between gap-1">
         {series.map((s) => (
-          <Cell key={s.id} series={s} pickedTeam={myPick(s.id)} />
+          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} seedSide={seedSide} />
         ))}
       </div>
     </div>
   );
 }
 
-function Cell({ series, pickedTeam }: { series: Series; pickedTeam?: string }) {
-  const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
+function FlexColumn({
+  label,
+  cells,
+  myPick,
+  center,
+}: {
+  label: string;
+  cells: (Series | undefined)[];
+  myPick: (sid: string) => string | undefined;
+  center?: boolean;
+}) {
   return (
-    <div className="overflow-hidden rounded-lg border border-ink-700/60 bg-ink-900/40">
-      <Row team={series.team_a} wins={series.wins_a} won={series.winner_id === series.team_a?.id} eliminated={elim(series.team_a?.id)} picked={pickedTeam === series.team_a?.id} />
-      <div className="h-px bg-ink-700/40" />
-      <Row team={series.team_b} wins={series.wins_b} won={series.winner_id === series.team_b?.id} eliminated={elim(series.team_b?.id)} picked={pickedTeam === series.team_b?.id} />
+    <div className="flex flex-col">
+      <RoundLabel label={label} />
+      <div className={cn("flex flex-1 flex-col gap-1", center ? "justify-center" : "justify-around")}>
+        {cells.map((s, i) =>
+          s ? <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} /> : <EmptyCell key={i} />
+        )}
+      </div>
     </div>
   );
 }
 
-function Row({ team, wins, won, eliminated, picked }: { team: Team | null; wins: number; won: boolean; eliminated: boolean; picked: boolean }) {
-  if (!team) return <div className="h-7" />;
+function CupColumn({ scf, myPick }: { scf: Series | undefined; myPick: (sid: string) => string | undefined }) {
   return (
-    <div className={cn("flex items-center gap-1.5 px-1.5 py-1", picked && !eliminated && "bg-brand/10")}>
+    <div className="flex flex-col">
+      <div className="mb-1 text-center font-mono text-[8px] font-black uppercase tracking-widest text-brand">Cup</div>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="w-full rounded-md border-2 border-brand/40 bg-gradient-to-b from-brand/10 to-transparent p-1.5">
+          <div className="text-center font-display text-[8px] font-black uppercase leading-tight tracking-widest text-brand">
+            Stanley<br />Cup
+          </div>
+          <div className="mt-1">
+            {scf ? <MatchupCell series={scf} myPick={myPick(scf.id)} /> : <EmptyCell />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoundLabel({ label }: { label: string }) {
+  return (
+    <div className="mb-1 text-center font-mono text-[8px] font-black uppercase tracking-widest text-brand">
+      {label}
+    </div>
+  );
+}
+
+function EmptyCell() {
+  return <div className="h-12 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
+}
+
+function MatchupCell({
+  series,
+  myPick,
+  seedSide,
+}: {
+  series: Series;
+  myPick?: string;
+  seedSide?: "left" | "right";
+}) {
+  const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
+  return (
+    <div className="overflow-hidden rounded-md border border-ink-700/60 bg-ink-900/80">
+      <TeamRow
+        team={series.team_a}
+        seed={series.team_a_seed}
+        wins={series.wins_a}
+        won={series.winner_id === series.team_a?.id}
+        eliminated={elim(series.team_a?.id)}
+        picked={myPick === series.team_a?.id}
+        seedSide={seedSide}
+      />
+      <div className="h-px bg-ink-700/40" />
+      <TeamRow
+        team={series.team_b}
+        seed={series.team_b_seed}
+        wins={series.wins_b}
+        won={series.winner_id === series.team_b?.id}
+        eliminated={elim(series.team_b?.id)}
+        picked={myPick === series.team_b?.id}
+        seedSide={seedSide}
+      />
+    </div>
+  );
+}
+
+function TeamRow({
+  team,
+  seed,
+  wins,
+  won,
+  eliminated,
+  picked,
+  seedSide,
+}: {
+  team: Team | null;
+  seed: number | null;
+  wins: number;
+  won: boolean;
+  eliminated: boolean;
+  picked: boolean;
+  seedSide?: "left" | "right";
+}) {
+  if (!team) return <div className="h-6" />;
+  return (
+    <div className={cn("flex items-center gap-1 px-1 py-1", picked && !eliminated && "bg-brand/10")}>
+      {seedSide === "left" && (
+        <span className="w-3 font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
+      )}
       {team.logo_url ? (
         <img src={team.logo_url} alt="" className={cn("h-5 w-5 flex-none object-contain", eliminated && "opacity-25 grayscale")} />
       ) : (
@@ -71,11 +205,17 @@ function Row({ team, wins, won, eliminated, picked }: { team: Team | null; wins:
       )}
       <div className="flex flex-1 items-center justify-end gap-0.5">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-300") : "bg-ink-700")} />
+          <div
+            key={i}
+            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-300") : "bg-ink-700")}
+          />
         ))}
       </div>
+      {seedSide === "right" && (
+        <span className="w-3 text-right font-mono text-[8px] font-black text-ink-500">{seed ?? ""}</span>
+      )}
       {picked && (
-        <span className={cn("font-mono text-[8px] font-black", eliminated ? "text-loss" : "text-brand")}>
+        <span className={cn("font-mono text-[7px] font-black", eliminated ? "text-loss" : "text-brand")}>
           {eliminated ? "✗" : "✓"}
         </span>
       )}
