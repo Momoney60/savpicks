@@ -192,7 +192,7 @@ function TeamBlock({
     <div
       className={cn(
         "flex flex-col items-center justify-between gap-0.5 border bg-ink-900/80 px-1 py-1",
-        position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
+        position === "top" ? (picked && !eliminated ? "rounded-t-md" : "rounded-t-md border-b-0") : "rounded-b-md",
         picked && !eliminated ? "border-brand" : "border-ink-700/60"
       )}
     >
