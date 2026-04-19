@@ -112,7 +112,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
                     <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
-                    <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
+                    {!isScheduled && <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />}
                     <PropResultBanner prop={p} game={game} />
                   </div>
                 ))}
