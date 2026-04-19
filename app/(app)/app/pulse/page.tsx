@@ -48,6 +48,17 @@ export default async function PulsePage() {
   const totalPlayers = mappedUsers.length;
   const picksCount = (picks ?? []).filter((p: any) => p.user_id === user!.id).length;
   const myPropCount = (propPicks ?? []).filter((p: any) => p.user_id === user!.id).length;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const propsList = (props ?? []) as any[];
+  const todayProps = propsList.filter((p) => {
+    if (!p.locks_at) return false;
+    return new Date(p.locks_at).toISOString().slice(0, 10) === todayStr;
+  });
+  const pastProps = propsList.filter((p) => {
+    if (!p.locks_at) return false;
+    return new Date(p.locks_at).toISOString().slice(0, 10) < todayStr;
+  });
+
 
   return (
     <main className="mx-auto max-w-md px-4 pt-safe pb-6">
@@ -132,12 +143,26 @@ export default async function PulsePage() {
         </CollapsibleSection>
 
         <CollapsibleSection
-          title="Prop Bets"
-          subtitle="Hidden until lock · grouped by game"
-          count={`${myPropCount} placed`}
+          title="Today's Props"
+          subtitle="Live and upcoming markets"
+          count={`${todayProps.length} markets`}
+          defaultOpen={true}
         >
           <PropsLog
-            props={(props ?? []) as any}
+            props={todayProps}
+            picks={(propPicks ?? []) as any}
+            users={mappedUsers}
+            currentUserId={user!.id}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Last Night's Props"
+          subtitle="Resolved · winners + losers"
+          count={`${pastProps.length} games`}
+        >
+          <PropsLog
+            props={pastProps}
             picks={(propPicks ?? []) as any}
             users={mappedUsers}
             currentUserId={user!.id}
