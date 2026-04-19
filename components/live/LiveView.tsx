@@ -80,36 +80,45 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
   const isFinal = game.status === "final";
   const isScheduled = game.status === "scheduled";
   const showStats = (isLive || isFinal) && (game.player_stats?.length ?? 0) > 0;
+  const [collapsed, setCollapsed] = useState<boolean>(isFinal);
 
   return (
-    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live/30 shadow-live/10" : "border-ink-700/70")}>
-      <StatusStrip game={game} />
-      <div className="px-5 py-4">
-        <TeamLine team={game.away_team} score={game.away_score} live={isLive} winning={game.away_score > game.home_score && (isLive || isFinal)} final={isFinal} scheduled={isScheduled} />
-        <div className="my-3 h-px bg-ink-700/40" />
-        <TeamLine team={game.home_team} score={game.home_score} live={isLive} winning={game.home_score > game.away_score && (isLive || isFinal)} final={isFinal} scheduled={isScheduled} />
-      </div>
+    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live/30 shadow-live/10" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
+      <button onClick={() => isFinal && setCollapsed(!collapsed)} className={cn("w-full text-left", isFinal && "active:opacity-80 cursor-pointer")} disabled={!isFinal}>
+        <StatusStrip game={game} />
+        <div className="px-5 py-4">
+          <TeamLine team={game.away_team} score={game.away_score} live={isLive} winning={game.away_score > game.home_score && (isLive || isFinal)} final={isFinal} scheduled={isScheduled} />
+          <div className="my-3 h-px bg-ink-700/40" />
+          <TeamLine team={game.home_team} score={game.home_score} live={isLive} winning={game.home_score > game.away_score && (isLive || isFinal)} final={isFinal} scheduled={isScheduled} />
+        </div>
+      </button>
 
-      {showStats && (
-        <LiveStatsPanel game={game} props={props} />
+      {isFinal && collapsed && (
+        <div className="border-t border-ink-700/40 bg-ink-900/40 px-5 py-1.5 text-center font-mono text-[9px] uppercase tracking-wider text-ink-500">
+          Tap to expand stats + markets
+        </div>
       )}
 
-      {props.length > 0 && (
+      {!collapsed && (
         <>
-          <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
-            <span className="font-display text-[10px] font-black uppercase tracking-[0.2em] text-ink-300">Markets</span>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">{props.length} {props.length === 1 ? "market" : "markets"}</span>
-          </div>
-          <div className="divide-y divide-ink-700/40">
-            {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
-              <div key={p.id}>
-                <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
-                <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
-                <PropResultBanner prop={p} game={game} />
-                
+          {showStats && <LiveStatsPanel game={game} props={props} />}
+          {props.length > 0 && (
+            <>
+              <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
+                <span className="font-display text-[10px] font-black uppercase tracking-[0.2em] text-ink-300">Markets</span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">{props.length} {props.length === 1 ? "market" : "markets"}</span>
               </div>
-            ))}
-          </div>
+              <div className="divide-y divide-ink-700/40">
+                {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
+                  <div key={p.id}>
+                    <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
+                    <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
+                    <PropResultBanner prop={p} game={game} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </motion.div>

@@ -48,16 +48,12 @@ export default async function PulsePage() {
   const totalPlayers = mappedUsers.length;
   const picksCount = (picks ?? []).filter((p: any) => p.user_id === user!.id).length;
   const myPropCount = (propPicks ?? []).filter((p: any) => p.user_id === user!.id).length;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const etDate = (d: string | Date) =>
+    new Date(d).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const todayStr = etDate(new Date());
   const propsList = (props ?? []) as any[];
-  const todayProps = propsList.filter((p) => {
-    if (!p.locks_at) return false;
-    return new Date(p.locks_at).toISOString().slice(0, 10) === todayStr;
-  });
-  const pastProps = propsList.filter((p) => {
-    if (!p.locks_at) return false;
-    return new Date(p.locks_at).toISOString().slice(0, 10) < todayStr;
-  });
+  const todayProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) === todayStr);
+  const pastProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) < todayStr);
 
 
   return (
