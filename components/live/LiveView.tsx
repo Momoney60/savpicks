@@ -106,6 +106,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
                 <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
                 <PropResultBanner prop={p} game={game} />
+                <PropResultBanner prop={p} game={game} />
               </div>
             ))}
           </div>
