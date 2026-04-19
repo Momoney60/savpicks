@@ -214,7 +214,7 @@ function TeamBlock({
   return (
     <div
       className={cn(
-        "relative flex flex-col border bg-ink-900/80",
+        "relative flex flex-col border bg-ink-900/80 overflow-hidden",
         position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
         borderClass
       )}
@@ -229,9 +229,9 @@ function TeamBlock({
             src={team.logo_url}
             alt=""
             className={cn(
-              "absolute z-20 h-14 w-14 object-contain top-1/2 -translate-y-1/2",
-              spill === "left" && "-left-3",
-              spill === "right" && "-right-3",
+              "absolute z-20 h-24 w-24 object-contain top-1/2 -translate-y-1/2",
+              spill === "left" && "-left-8",
+              spill === "right" && "-right-8",
               !spill && "left-1/2 -translate-x-1/2",
               eliminated && "opacity-30"
             )}
