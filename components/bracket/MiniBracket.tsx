@@ -76,7 +76,7 @@ function Column({
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
-      <div className="flex flex-1 flex-col justify-between gap-2">
+      <div className="flex flex-1 flex-col justify-between gap-6">
         {series.map((s) => (
           <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} />
         ))}
