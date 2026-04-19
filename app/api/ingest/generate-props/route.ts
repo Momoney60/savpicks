@@ -5,14 +5,7 @@ export const maxDuration = 60;
 
 const INGEST_SECRET = process.env.INGEST_SHARED_SECRET;
 
-// NHL numeric teamId -> abbreviation (stable, 32 franchises)
-const TEAM_ID_TO_ABBREV: Record<number, string> = {
-  1: "NJD", 2: "NYI", 3: "NYR", 4: "PHI", 5: "PIT", 6: "BOS", 7: "BUF",
-  8: "MTL", 9: "OTT", 10: "TOR", 12: "CAR", 13: "FLA", 14: "TBL", 15: "WSH",
-  16: "CHI", 17: "DET", 18: "NSH", 19: "STL", 20: "CGY", 21: "COL", 22: "EDM",
-  23: "VAN", 24: "ANA", 25: "DAL", 26: "LAK", 28: "SJS", 29: "CBJ", 30: "MIN",
-  52: "WPG", 54: "VGK", 55: "SEA", 59: "UTA", 68: "UTA",
-};
+
 
 type Skater = {
   playerId: number;
@@ -24,42 +17,45 @@ type Skater = {
   positionCode?: string;
 };
 
-async function fetchTopScorer(teamAbbrev: string): Promise<{ name: string; team: string } | null> {
+
+
+
+
+async function fetchClubData(teamAbbrev: string): Promise<{
+  topScorer: { name: string; team: string } | null;
+  pimPerGame: number | null;
+} | null> {
   try {
     const res = await fetch(`https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/now`);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log("club-stats fail for " + teamAbbrev + ": " + res.status);
+      return null;
+    }
     const data: any = await res.json();
-    const skaters: Skater[] = data.skaters ?? [];
+    const skaters: any[] = data.skaters ?? [];
     const eligible = skaters.filter((s) => s.positionCode !== "G");
     if (eligible.length === 0) return null;
-    eligible.sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
-    const top = eligible[0];
+
+    // Top scorer
+    const sorted = [...eligible].sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+    const top = sorted[0];
     const fullName = `${top.firstName?.default ?? ""} ${top.lastName?.default ?? ""}`.trim();
-    return { name: fullName, team: teamAbbrev };
-  } catch {
+
+    // Team PIM/GP — sum all players' pim, divide by max gamesPlayed in roster
+    const totalPim = skaters.reduce((sum, s) => sum + (s.penaltyMinutes ?? s.pim ?? 0), 0);
+    const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
+    const pimPerGame = maxGP > 0 ? totalPim / maxGP : null;
+
+    console.log(teamAbbrev + ": top=" + fullName + " teamPIM=" + totalPim + " GP=" + maxGP + " PIM/GP=" + pimPerGame);
+
+    return {
+      topScorer: { name: fullName, team: teamAbbrev },
+      pimPerGame,
+    };
+  } catch (e: any) {
+    console.log("club-stats error for " + teamAbbrev + ": " + e?.message);
     return null;
   }
-}
-
-async function fetchTeamPimsPerGame(): Promise<Record<string, number>> {
-  const map: Record<string, number> = {};
-  try {
-    const url = "https://api.nhle.com/stats/rest/en/team/summary?cayenneExp=seasonId=20252026%20and%20gameTypeId=2";
-    const res = await fetch(url);
-    if (!res.ok) return map;
-    const data: any = await res.json();
-    for (const team of data.data ?? []) {
-      const abbrev = TEAM_ID_TO_ABBREV[team.teamId];
-      const gp = team.gamesPlayed ?? 0;
-      const pim = team.penaltyMinutes ?? 0;
-      if (abbrev && gp > 0) {
-        map[abbrev] = pim / gp;
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return map;
 }
 
 function computePimLine(homePimPerGame: number, awayPimPerGame: number): number {
@@ -98,8 +94,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, date: dateParam, message: "No playoff games scheduled" });
   }
 
-  // Preload team PIM/GP for all teams (single request)
-  const pimMap = await fetchTeamPimsPerGame();
+  // PIM map populated as we fetch each team's club-stats
+  const pimMap: Record<string, number> = {};
 
   const supabase = createServiceClient();
   const results: any[] = [];
@@ -149,11 +145,15 @@ export async function POST(request: Request) {
 
     const propsToInsert: any[] = [];
 
-    // --- H2H prop: top scorer home vs top scorer away ---
-    const [topHome, topAway] = await Promise.all([
-      fetchTopScorer(home),
-      fetchTopScorer(away),
+    // --- Fetch club data (top scorer + team PIMs) for both teams in parallel ---
+    const [homeData, awayData] = await Promise.all([
+      fetchClubData(home),
+      fetchClubData(away),
     ]);
+    const topHome = homeData?.topScorer ?? null;
+    const topAway = awayData?.topScorer ?? null;
+    if (homeData?.pimPerGame != null) pimMap[home] = homeData.pimPerGame;
+    if (awayData?.pimPerGame != null) pimMap[away] = awayData.pimPerGame;
 
     if (topHome && topAway) {
       propsToInsert.push({
