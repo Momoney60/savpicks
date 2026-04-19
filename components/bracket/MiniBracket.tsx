@@ -38,14 +38,14 @@ export default function MiniBracket({
   const scf = series.find((s) => s.round === 4);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
-      <div className="p-3">
+    <div className="rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
+      <div className="px-2 pt-3 pb-2">
         <div className="mb-2 text-center">
           <p className="font-display text-[9px] font-black uppercase tracking-[0.3em] text-brand">Stanley Cup</p>
           <p className="font-display text-[12px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
         </div>
 
-        <div className="grid grid-cols-7 gap-1" style={{ height: "560px" }}>
+        <div className="grid grid-cols-7 items-stretch gap-1">
           <Column label="R1" series={westR1} myPick={myPick} spill="left" />
           <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
           <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
@@ -137,7 +137,7 @@ function RoundLabel({ label }: { label: string }) {
 }
 
 function EmptyCell() {
-  return <div className="h-24 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
+  return <div className="h-[100px] rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
 }
 
 function MatchupCell({
@@ -203,6 +203,14 @@ function TeamBlock({
     ? "border-rink-red bg-rink-red/10"
     : "border-ink-700/60";
 
+  const stripBg = eliminated
+    ? "bg-rink-red/15 border-rink-red/30"
+    : picked
+    ? "bg-brand/15 border-brand/30"
+    : "bg-ink-800 border-ink-700/40";
+
+  const stripText = eliminated ? "text-rink-red" : picked ? "text-brand" : "text-ink-400";
+
   return (
     <div
       className={cn(
@@ -211,17 +219,8 @@ function TeamBlock({
         borderClass
       )}
     >
-      <div className={cn(
-        "border-b text-center py-0.5",
-        eliminated ? "bg-rink-red/15 border-rink-red/30" : picked ? "bg-brand/15 border-brand/30" : "bg-ink-800 border-ink-700/40",
-        position === "top" && "rounded-t-[5px]"
-      )}>
-        <span className={cn(
-          "font-mono text-[8px] font-black",
-          eliminated ? "text-rink-red" : picked ? "text-brand" : "text-ink-400"
-        )}>
-          #{seed ?? "—"}
-        </span>
+      <div className={cn("h-3.5 flex items-center justify-center border-b leading-none", stripBg, position === "top" && "rounded-t-[5px]") }>
+        <span className={cn("font-mono text-[8px] font-black leading-none", stripText)}>#{seed ?? "—"}</span>
       </div>
 
       <div className="relative h-9 overflow-visible">
@@ -230,34 +229,24 @@ function TeamBlock({
             src={team.logo_url}
             alt=""
             className={cn(
-              "absolute h-12 w-12 object-contain top-1/2 -translate-y-1/2",
-              spill === "left" && "-left-2",
-              spill === "right" && "-right-2",
+              "absolute z-20 h-14 w-14 object-contain top-1/2 -translate-y-1/2",
+              spill === "left" && "-left-3",
+              spill === "right" && "-right-3",
               !spill && "left-1/2 -translate-x-1/2",
               eliminated && "opacity-30"
             )}
-            style={spill ? undefined : { transform: "translate(-50%, -50%)" }}
+            style={!spill ? { transform: "translate(-50%, -50%)" } : undefined}
           />
         )}
       </div>
 
-      <div className={cn(
-        "border-t flex items-center justify-center gap-0.5 py-1",
-        eliminated ? "bg-rink-red/15 border-rink-red/30" : picked ? "bg-brand/15 border-brand/30" : "bg-ink-800 border-ink-700/40",
-        position === "bottom" && "rounded-b-[5px]"
-      )}>
+      <div className={cn("h-3.5 flex items-center justify-center gap-0.5 border-t leading-none", stripBg, position === "bottom" && "rounded-b-[5px]") }>
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
             className={cn(
               "h-1 w-1 rounded-full",
-              i < wins
-                ? won
-                  ? "bg-brand"
-                  : eliminated
-                  ? "bg-rink-red"
-                  : "bg-ink-100"
-                : "bg-ink-700"
+              i < wins ? (won ? "bg-brand" : eliminated ? "bg-rink-red" : "bg-ink-100") : "bg-ink-700"
             )}
           />
         ))}
