@@ -120,3 +120,19 @@ button[class*="bg-brand"]:focus-visible,
     0 0 0 2px #ffffff,
     0 0 0 4px rgba(125, 211, 252, 0.8);
 }
+
+
+/* === Mobile press feedback: works on iOS, gives real tap response === */
+button[class*="bg-brand"]:active,
+a[class*="bg-brand"]:active,
+.lift-on-hover:active {
+  transform: scale(0.97);
+  filter: brightness(1.15);
+  transition: transform 80ms ease, filter 80ms ease;
+}
+
+/* Pick cell press feedback */
+[role="button"]:active,
+button[class*="rounded"]:active {
+  transition: transform 80ms ease;
+}

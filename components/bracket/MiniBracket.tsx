@@ -38,7 +38,7 @@ export default function MiniBracket({
   const scf = series.find((s) => s.round === 4);
 
   return (
-    <div className="rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950">
+    <div className="rounded-2xl border border-ink-700/70 bg-gradient-to-b from-ink-900 to-ink-950 shadow-tier-3">
       <div className="px-2 pt-3 pb-2">
         <div className="mb-2 text-center">
           <p className="font-display text-[9px] font-black uppercase tracking-[0.3em] text-brand">Stanley Cup</p>

@@ -83,7 +83,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
   const [collapsed, setCollapsed] = useState<boolean>(isFinal);
 
   return (
-    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live shadow-lg shadow-live/30" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
+    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850", isLive ? "border-live/60 shadow-tier-live" : isFinal ? "border-ink-700/40 shadow-tier-1" : "border-ink-700/70 shadow-tier-2")}>
       <button onClick={() => isFinal && setCollapsed(!collapsed)} className={cn("w-full text-left", isFinal && "active:opacity-80 cursor-pointer")} disabled={!isFinal}>
         <StatusStrip game={game} />
         <div className="px-5 py-4">

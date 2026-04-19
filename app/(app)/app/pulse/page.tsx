@@ -75,7 +75,7 @@ export default async function PulsePage() {
       </header>
 
       {/* Hero stats */}
-      <div className="mb-5 overflow-hidden rounded-3xl border border-brand/15 bg-gradient-to-br from-brand/15 via-ink-850 to-ink-900 p-4">
+      <div className="mb-5 overflow-hidden rounded-3xl border border-brand/15 bg-gradient-to-br from-brand/15 via-ink-850 to-ink-900 p-4 shadow-tier-3">
         <div className="flex items-center justify-between font-mono text-[10px] font-black uppercase tracking-[0.2em]">
           <span className="text-brand">Your Position</span>
           <span className="text-ink-500">{totalPlayers} {totalPlayers === 1 ? "player" : "players"}</span>
