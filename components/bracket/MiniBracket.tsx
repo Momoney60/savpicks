@@ -223,19 +223,15 @@ function TeamBlock({
         <span className={cn("font-mono text-[8px] font-black leading-none", stripText)}>#{seed ?? "—"}</span>
       </div>
 
-      <div className="relative h-9 overflow-visible">
+      <div className="relative h-14 overflow-hidden">
         {team.logo_url && (
           <img
             src={team.logo_url}
             alt=""
             className={cn(
-              "absolute z-20 h-24 w-24 object-contain top-1/2 -translate-y-1/2",
-              spill === "left" && "-left-8",
-              spill === "right" && "-right-8",
-              !spill && "left-1/2 -translate-x-1/2",
+              "absolute inset-0 h-full w-full scale-[1.35] object-contain",
               eliminated && "opacity-30"
             )}
-            style={!spill ? { transform: "translate(-50%, -50%)" } : undefined}
           />
         )}
       </div>
