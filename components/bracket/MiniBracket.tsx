@@ -45,14 +45,14 @@ export default function MiniBracket({
           <p className="font-display text-[12px] font-black tracking-wide text-ink-100">Playoffs Bracket</p>
         </div>
 
-        <div className="grid grid-cols-7 gap-1" style={{ height: "320px" }}>
-          <Column label="R1" series={westR1} myPick={myPick} seedSide="left" />
+        <div className="grid grid-cols-7 gap-1" style={{ height: "560px" }}>
+          <Column label="R1" series={westR1} myPick={myPick} />
           <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} />
           <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} center />
           <CupColumn scf={scf} myPick={myPick} />
           <FlexColumn label="ECF" cells={[eastCF]} myPick={myPick} center />
           <FlexColumn label="R2" cells={[eastR2[0], eastR2[1]]} myPick={myPick} />
-          <Column label="R1" series={eastR1} myPick={myPick} seedSide="right" />
+          <Column label="R1" series={eastR1} myPick={myPick} />
         </div>
 
         <div className="mt-2 flex items-center justify-between px-1 font-mono text-[8px] uppercase tracking-widest text-ink-500">
@@ -68,19 +68,17 @@ function Column({
   label,
   series,
   myPick,
-  seedSide,
 }: {
   label: string;
   series: Series[];
   myPick: (sid: string) => string | undefined;
-  seedSide: "left" | "right";
 }) {
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
       <div className="flex flex-1 flex-col justify-between gap-1">
         {series.map((s) => (
-          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} seedSide={seedSide} />
+          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} />
         ))}
       </div>
     </div>
@@ -137,53 +135,48 @@ function RoundLabel({ label }: { label: string }) {
 }
 
 function EmptyCell() {
-  return <div className="h-14 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
+  return <div className="h-24 rounded-md border border-dashed border-ink-700/40 bg-ink-900/40" />;
 }
 
 function MatchupCell({
   series,
   myPick,
-  seedSide,
 }: {
   series: Series;
   myPick?: string;
-  seedSide?: "left" | "right";
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
     <div>
-      <TeamRow
+      <TeamBlock
         team={series.team_a}
         seed={series.team_a_seed}
         wins={series.wins_a}
         won={series.winner_id === series.team_a?.id}
         eliminated={elim(series.team_a?.id)}
         picked={myPick === series.team_a?.id}
-        seedSide={seedSide}
         position="top"
       />
-      <TeamRow
+      <TeamBlock
         team={series.team_b}
         seed={series.team_b_seed}
         wins={series.wins_b}
         won={series.winner_id === series.team_b?.id}
         eliminated={elim(series.team_b?.id)}
         picked={myPick === series.team_b?.id}
-        seedSide={seedSide}
         position="bottom"
       />
     </div>
   );
 }
 
-function TeamRow({
+function TeamBlock({
   team,
   seed,
   wins,
   won,
   eliminated,
   picked,
-  seedSide,
   position,
 }: {
   team: Team | null;
@@ -192,51 +185,36 @@ function TeamRow({
   won: boolean;
   eliminated: boolean;
   picked: boolean;
-  seedSide?: "left" | "right";
   position: "top" | "bottom";
 }) {
-  if (!team) return <div className="h-7" />;
+  if (!team) return <div className="h-12" />;
   return (
     <div
       className={cn(
-        "relative flex h-7 items-center overflow-hidden border bg-ink-900/80",
+        "flex flex-col items-center justify-between gap-0.5 border bg-ink-900/80 px-1 py-1",
         position === "top" ? "rounded-t-md border-b-0" : "rounded-b-md",
         picked && !eliminated ? "border-brand" : "border-ink-700/60"
       )}
     >
+      <span className="font-mono text-[8px] font-black leading-none text-ink-500/80">
+        {seed ? `#${seed}` : ""}
+      </span>
       {team.logo_url ? (
         <img
           src={team.logo_url}
           alt=""
-          className={cn(
-            "absolute z-0 h-12 w-12 object-contain top-1/2 -translate-y-1/2",
-            seedSide === "right"
-              ? "right-0 translate-x-3"
-              : "left-0 -translate-x-3",
-            eliminated && "opacity-25 grayscale"
-          )}
+          className={cn("h-7 w-7 object-contain", eliminated && "opacity-25 grayscale")}
         />
-      ) : null}
-      <div
-        className={cn(
-          "relative z-10 flex w-full items-center px-1",
-          seedSide === "right" ? "justify-start" : "justify-end"
-        )}
-      >
-        {seedSide === "left" && (
-          <span className="mr-auto pl-7 font-mono text-[8px] font-black text-ink-500/80">{seed ?? ""}</span>
-        )}
-        {seedSide === "right" && (
-          <span className="ml-auto pr-7 font-mono text-[8px] font-black text-ink-500/80">{seed ?? ""}</span>
-        )}
-        <div className={cn("flex items-center gap-0.5", seedSide === "right" ? "absolute left-1" : "absolute right-1")}>
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700/80")}
-            />
-          ))}
-        </div>
+      ) : (
+        <div className="h-7 w-7 rounded-full bg-ink-700" />
+      )}
+      <div className="flex items-center gap-0.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700/80")}
+          />
+        ))}
       </div>
     </div>
   );
