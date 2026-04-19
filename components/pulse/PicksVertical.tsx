@@ -153,7 +153,7 @@ export default function PicksVertical({
                               "h-5 w-5 object-contain",
                               pick.is_correct === true &&
                                 "rounded-full ring-1 ring-brand",
-                              pick.is_correct === false && "opacity-30 grayscale"
+                              pick.is_correct === false && "ring-2 ring-rink-red/50 opacity-50"
                             )}
                           />
                         )}
@@ -161,8 +161,7 @@ export default function PicksVertical({
                           className={cn(
                             "font-mono text-[10px] font-bold uppercase tracking-wider",
                             pick.is_correct === true && "text-brand",
-                            pick.is_correct === false &&
-                              "text-ink-500 line-through",
+                            pick.is_correct === false && "text-rink-red line-through",
                             pick.is_correct === null && "text-ink-200"
                           )}
                         >

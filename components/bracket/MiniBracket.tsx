@@ -193,7 +193,7 @@ function TeamBlock({
       className={cn(
         "relative flex flex-col items-center justify-between gap-0.5 border bg-ink-900/80 px-1 py-1",
         position === "top" ? (picked && !eliminated ? "rounded-t-md" : "rounded-t-md border-b-0") : "rounded-b-md",
-        picked && !eliminated ? "border-brand" : eliminated ? "border-rink-red/30 bg-rink-red/[0.04]" : "border-ink-700/60"
+        picked && !eliminated ? "border-brand" : eliminated ? "border-rink-red bg-rink-red/10" : "border-ink-700/60"
       )}
     >
       <span className="font-mono text-[8px] font-black leading-none text-ink-500/80">
@@ -203,7 +203,7 @@ function TeamBlock({
         <img
           src={team.logo_url}
           alt=""
-          className={cn("h-7 w-7 object-contain", eliminated && "opacity-25 grayscale")}
+          className={cn("h-7 w-7 object-contain", eliminated && "opacity-30")}
         />
       ) : (
         <div className="h-7 w-7 rounded-full bg-ink-700" />
@@ -217,7 +217,7 @@ function TeamBlock({
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : "bg-ink-200") : "bg-ink-700/80")}
+            className={cn("h-1 w-1 rounded-full", i < wins ? (won ? "bg-brand" : eliminated ? "bg-rink-red" : "bg-ink-200") : "bg-ink-700/80")}
           />
         ))}
       </div>

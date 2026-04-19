@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { RinkStripes } from "@/components/shared/RinkStripes";
 import LeaderboardSwitcher from "@/components/pulse/LeaderboardSwitcher";
 import CollapsibleSection from "@/components/pulse/CollapsibleSection";
 import ActivityFeed from "@/components/pulse/ActivityFeed";
@@ -74,7 +73,6 @@ export default async function PulsePage() {
           </span>
         )}
       </header>
-      <RinkStripes className="mb-4 -mx-4" />
 
       {/* Hero stats */}
       <div className="mb-5 overflow-hidden rounded-3xl border border-brand/15 bg-gradient-to-br from-brand/15 via-ink-850 to-ink-900 p-4">

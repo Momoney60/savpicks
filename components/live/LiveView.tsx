@@ -83,7 +83,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
   const [collapsed, setCollapsed] = useState<boolean>(isFinal);
 
   return (
-    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live/60 shadow-live/20" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
+    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live shadow-lg shadow-live/30" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
       <button onClick={() => isFinal && setCollapsed(!collapsed)} className={cn("w-full text-left", isFinal && "active:opacity-80 cursor-pointer")} disabled={!isFinal}>
         <StatusStrip game={game} />
         <div className="px-5 py-4">
@@ -315,6 +315,7 @@ function Countdown({ target }: { target: string }) {
 
 function TeamLine({ team, score, live, winning, final, scheduled }: { team: Team | null | undefined; score: number; live: boolean; winning: boolean; final: boolean; scheduled: boolean; }) {
   if (!team) return <div className="h-10" />;
+  const isLosing = (live || final) && !winning && !scheduled;
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -324,7 +325,7 @@ function TeamLine({ team, score, live, winning, final, scheduled }: { team: Team
           <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">{team.id}</div>
         </div>
       </div>
-      {scheduled ? <span className="font-mono text-3xl font-light tabular-nums text-ink-700">—</span> : <span className={cn("font-display text-[38px] font-black leading-none tabular-nums", winning ? "text-ink-100" : live ? "text-ink-300" : "text-ink-400", final && !winning && "text-ink-600")}>{score}</span>}
+      {scheduled ? <span className="font-mono text-3xl font-light tabular-nums text-ink-700">—</span> : <span className={cn("font-display text-[38px] font-black leading-none tabular-nums", winning && "text-ink-100", !winning && live && "text-rink-red", !winning && final && "text-rink-red/60")}>{score}</span>}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { RinkStripes } from "@/components/shared/RinkStripes";
 import BracketView from "@/components/bracket/BracketView";
 import MiniBracket from "@/components/bracket/MiniBracket";
 
@@ -37,7 +36,6 @@ export default async function BracketPage() {
           Ride a team from Round 1 to the Cup for up to 8x points.
         </p>
       </header>
-      <RinkStripes className="mb-4 -mx-4" />
 
       <div className="mb-4">
         <MiniBracket
