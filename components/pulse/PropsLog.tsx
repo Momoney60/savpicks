@@ -140,7 +140,7 @@ export default function PropsLog({
                                   {canSee ? selectionLabel(prop, pick.selection) : "🔒"}
                                 </span>
                                 {resultIcon && (
-                                  <span className={cn("font-mono text-[11px] font-black", pick.is_correct ? "text-brand" : "text-loss/70")}>
+                                  <span className={cn("inline-flex h-4 min-w-4 items-center justify-center rounded font-mono text-[11px] font-black px-1", pick.is_correct ? "bg-brand/15 text-brand" : "bg-rink-red/20 text-rink-red")}>
                                     {resultIcon}
                                   </span>
                                 )}

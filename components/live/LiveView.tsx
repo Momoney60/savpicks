@@ -83,7 +83,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
   const [collapsed, setCollapsed] = useState<boolean>(isFinal);
 
   return (
-    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live/30 shadow-live/10" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
+    <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850 shadow-lg", isLive ? "border-live/60 shadow-live/20" : isFinal ? "border-ink-700/40" : "border-ink-700/70")}>
       <button onClick={() => isFinal && setCollapsed(!collapsed)} className={cn("w-full text-left", isFinal && "active:opacity-80 cursor-pointer")} disabled={!isFinal}>
         <StatusStrip game={game} />
         <div className="px-5 py-4">
@@ -280,7 +280,7 @@ function StatusStrip({ game }: { game: Game }) {
   const isLive = game.status === "live";
   const isFinal = game.status === "final";
   return (
-    <div className={cn("flex items-center justify-between px-5 py-2.5", isLive ? "bg-gradient-to-r from-live/10 via-ink-900/40 to-transparent" : "bg-ink-900/60", "border-b border-ink-700/50")}>
+    <div className={cn("flex items-center justify-between border-b px-5 py-2.5", isLive ? "bg-gradient-to-r from-live/15 via-live/[0.04] to-transparent border-live/40" : "bg-ink-900/60 border-ink-700/50")}>
       {isLive ? (
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
@@ -406,7 +406,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
           )}
         </div>
         <div className="flex items-center justify-between gap-3">
-          <div className={cn("flex-1", winner === "a" ? "" : "opacity-50")}>
+          <div className={cn("flex-1 rounded-md px-2 py-1", winner === "a" ? "" : "bg-rink-red/[0.08] ring-1 ring-rink-red/20")}>
             <div className="flex items-baseline gap-1.5">
               <span className={cn("font-display text-[14px] font-bold", winner === "a" ? "text-brand" : "text-ink-300")}>{lastName(aName)}</span>
               <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{aTeam}</span>
@@ -418,7 +418,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             </div>
           </div>
           <span className="font-mono text-[10px] text-ink-600">VS</span>
-          <div className={cn("flex-1 text-right", winner === "b" ? "" : "opacity-50")}>
+          <div className={cn("flex-1 rounded-md px-2 py-1 text-right", winner === "b" ? "" : "bg-rink-red/[0.08] ring-1 ring-rink-red/20")}>
             <div className="flex items-baseline justify-end gap-1.5">
               <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{bTeam}</span>
               <span className={cn("font-display text-[14px] font-bold", winner === "b" ? "text-brand" : "text-ink-300")}>{lastName(bName)}</span>

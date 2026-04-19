@@ -191,9 +191,9 @@ function TeamBlock({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-between gap-0.5 border bg-ink-900/80 px-1 py-1",
+        "relative flex flex-col items-center justify-between gap-0.5 border bg-ink-900/80 px-1 py-1",
         position === "top" ? (picked && !eliminated ? "rounded-t-md" : "rounded-t-md border-b-0") : "rounded-b-md",
-        picked && !eliminated ? "border-brand" : "border-ink-700/60"
+        picked && !eliminated ? "border-brand" : eliminated ? "border-rink-red/30 bg-rink-red/[0.04]" : "border-ink-700/60"
       )}
     >
       <span className="font-mono text-[8px] font-black leading-none text-ink-500/80">
@@ -207,6 +207,11 @@ function TeamBlock({
         />
       ) : (
         <div className="h-7 w-7 rounded-full bg-ink-700" />
+      )}
+      {eliminated && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="font-display text-[22px] font-black leading-none text-rink-red/70">×</span>
+        </div>
       )}
       <div className="flex items-center gap-0.5">
         {[0, 1, 2, 3].map((i) => (
