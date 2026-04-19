@@ -215,7 +215,7 @@ function TeamBlock({
         <span className={cn("font-mono text-[8px] font-black leading-none", stripText)}>#{seed ?? "—"}</span>
       </div>
 
-      <div className="relative h-14 overflow-hidden">
+      <div className="relative h-7 overflow-hidden">
         {team.logo_url && (
           <img
             src={team.logo_url}
