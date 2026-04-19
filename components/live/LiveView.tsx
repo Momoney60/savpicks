@@ -106,7 +106,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
                 <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />
                 <PropResultBanner prop={p} game={game} />
-                <PropResultBanner prop={p} game={game} />
+                
               </div>
             ))}
           </div>
@@ -148,7 +148,7 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
           </div>
         )}
 
-        {h2hProp && (playerA || playerB) && (
+        {h2hProp && (
           <div className="flex-1 min-w-0">
             <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
               Grudge · H2H
@@ -156,9 +156,11 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
             <div className="mt-0.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">{playerA?.team ?? ""}</span>
+                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
+                    {playerA?.team ?? h2hProp.metadata?.player_a_team ?? ""}
+                  </span>
                   <span className={cn("truncate font-display text-[12px] font-bold", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-200")}>
-                    {playerA ? lastName(playerA.name) : "—"}
+                    {lastName(h2hProp.metadata?.player_a_name ?? "")}
                   </span>
                 </div>
                 <span className={cn("font-display text-[15px] font-black tabular-nums", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-300")}>
@@ -167,9 +169,11 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">{playerB?.team ?? ""}</span>
+                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
+                    {playerB?.team ?? h2hProp.metadata?.player_b_team ?? ""}
+                  </span>
                   <span className={cn("truncate font-display text-[12px] font-bold", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-200")}>
-                    {playerB ? lastName(playerB.name) : "—"}
+                    {lastName(h2hProp.metadata?.player_b_name ?? "")}
                   </span>
                 </div>
                 <span className={cn("font-display text-[15px] font-black tabular-nums", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-300")}>
