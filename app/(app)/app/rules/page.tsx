@@ -46,13 +46,7 @@ export default function RulesPage() {
             reward="+5 pts"
             body="Over/Under on total PIMs for a game. Pushes pay 0."
           />
-          <PropRow
-            emoji="🚨"
-            title="Next Goal"
-            reward="+1 pt"
-            body="Which team scores next? Resolves instantly on every goal. 6–5 game = 11 chances."
-          />
-        </div>
+</div>
       </Section>
 
       <Section title="The Pot">
