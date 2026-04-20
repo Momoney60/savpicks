@@ -120,27 +120,16 @@ export async function POST(request: Request) {
       continue;
     }
 
-    // Ensure game row exists (props have FK to games.id)
-    // Resolve team abbreviations -> UUIDs first; series.team_*_id are UUIDs, not abbrevs.
-    const { data: teamRows } = await supabase
-      .from("teams")
-      .select("id, short_name")
-      .in("short_name", [home, away]);
-    const homeTeamId = teamRows?.find((t: any) => t.short_name === home)?.id ?? null;
-    const awayTeamId = teamRows?.find((t: any) => t.short_name === away)?.id ?? null;
-
-    let seriesId: string | null = null;
-    if (homeTeamId && awayTeamId) {
-      const { data: seriesRow } = await supabase
-        .from("series")
-        .select("id")
-        .or(`and(team_a_id.eq.${homeTeamId},team_b_id.eq.${awayTeamId}),and(team_a_id.eq.${awayTeamId},team_b_id.eq.${homeTeamId})`)
-        .maybeSingle();
-      seriesId = seriesRow?.id ?? null;
-    }
-
+    // Ensure game row exists (props have FK to games.id).
+    // teams.id IS the team abbreviation (text), so we use the abbrevs directly.
+    const { data: seriesRow } = await supabase
+      .from("series")
+      .select("id")
+      .or(`and(team_a_id.eq.${home},team_b_id.eq.${away}),and(team_a_id.eq.${away},team_b_id.eq.${home})`)
+      .maybeSingle();
+    const seriesId = seriesRow?.id ?? null;
     if (!seriesId) {
-      console.log(`WARN: no series found for ${gameLabel} (homeId=${homeTeamId}, awayId=${awayTeamId})`);
+      console.log(`WARN: no series found for ${gameLabel}`);
     }
 
     await supabase
@@ -148,8 +137,8 @@ export async function POST(request: Request) {
       .upsert({
         id: gameId,
         status: "scheduled",
-        home_team_id: homeTeamId,
-        away_team_id: awayTeamId,
+        home_team_id: home,
+        away_team_id: away,
         home_score: 0,
         away_score: 0,
         period: null,
