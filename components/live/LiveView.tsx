@@ -38,10 +38,10 @@ type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any
 type PublicUser = { user_id: string; gamertag: string };
 
 function propMatchesGame(prop: Prop, game: Game): boolean {
-  const m = prop.metadata ?? {};
-  const gameTeams = new Set([game.home_team_id, game.away_team_id]);
-  const propTeams = [m.home_team, m.away_team, m.home_team_id, m.away_team_id, m.player_a_team, m.player_b_team].filter(Boolean);
-  return Array.from(gameTeams).every((t) => propTeams.includes(t));
+  // Strict match on NHL game_id — the only correct identity.
+  // Old fuzzy team-set match incorrectly merged props across all games of a series
+  // (Game 1 + Game 2 + Game 3... all show same teams, all would match).
+  return prop.game_id === game.id;
 }
 
 export default function LiveView({ games, props, myPicks, allPropPicks = [], users = [], currentUserId }: {
