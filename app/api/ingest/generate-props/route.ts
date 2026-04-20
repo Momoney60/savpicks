@@ -107,38 +107,55 @@ export async function POST(request: Request) {
     const gameLabel = `${away} @ ${home}`;
     const lockTime = g.startTimeUTC;
 
-    // Idempotency: skip if ANY prop already references this game
+    // Idempotency: skip ONLY if THIS specific game (by NHL game_id) already has props.
+    // Each playoff series has up to 7 unique gameIds, so matching on series/teams would
+    // wrongly skip Games 2 through 7. NHL game_id is globally unique per game.
     const { data: existing } = await supabase
       .from("props")
       .select("id")
-      .or(`game_id.eq.${gameId},metadata->>game_label.like.${gameLabel}%`)
+      .eq("game_id", gameId)
       .limit(1);
-
     if (existing && existing.length > 0) {
-      results.push({ game: gameLabel, status: "skipped (props exist)" });
+      results.push({ game: gameLabel, gameId, status: "skipped (props exist for this game_id)" });
       continue;
     }
 
     // Ensure game row exists (props have FK to games.id)
-    const { data: seriesRow } = await supabase
-      .from("series")
-      .select("id")
-      .or(`and(team_a_id.eq.${home},team_b_id.eq.${away}),and(team_a_id.eq.${away},team_b_id.eq.${home})`)
-      .maybeSingle();
+    // Resolve team abbreviations -> UUIDs first; series.team_*_id are UUIDs, not abbrevs.
+    const { data: teamRows } = await supabase
+      .from("teams")
+      .select("id, short_name")
+      .in("short_name", [home, away]);
+    const homeTeamId = teamRows?.find((t: any) => t.short_name === home)?.id ?? null;
+    const awayTeamId = teamRows?.find((t: any) => t.short_name === away)?.id ?? null;
+
+    let seriesId: string | null = null;
+    if (homeTeamId && awayTeamId) {
+      const { data: seriesRow } = await supabase
+        .from("series")
+        .select("id")
+        .or(`and(team_a_id.eq.${homeTeamId},team_b_id.eq.${awayTeamId}),and(team_a_id.eq.${awayTeamId},team_b_id.eq.${homeTeamId})`)
+        .maybeSingle();
+      seriesId = seriesRow?.id ?? null;
+    }
+
+    if (!seriesId) {
+      console.log(`WARN: no series found for ${gameLabel} (homeId=${homeTeamId}, awayId=${awayTeamId})`);
+    }
 
     await supabase
       .from("games")
       .upsert({
         id: gameId,
         status: "scheduled",
-        home_team_id: home,
-        away_team_id: away,
+        home_team_id: homeTeamId,
+        away_team_id: awayTeamId,
         home_score: 0,
         away_score: 0,
         period: null,
         clock: null,
         scheduled_at: lockTime,
-        series_id: seriesRow?.id ?? null,
+        series_id: seriesId,
         player_stats: [],
         total_pim: 0,
       }, { onConflict: "id" });
