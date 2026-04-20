@@ -53,7 +53,11 @@ export default async function PulsePage() {
   const todayStr = etDate(new Date());
   const propsList = (props ?? []) as any[];
   const todayProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) === todayStr);
-  const pastProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) < todayStr);
+  // "Last Night" = strictly yesterday in ET, not "anytime in the past"
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = etDate(yesterday);
+  const pastProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) === yesterdayStr);
 
 
   return (
