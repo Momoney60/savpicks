@@ -12,6 +12,7 @@ export default async function LivePage() {
   const now = new Date();
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
   const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const next36h = new Date(now.getTime() + 36 * 60 * 60 * 1000).toISOString();
 
   const [
     { data: games },
@@ -25,9 +26,10 @@ export default async function LivePage() {
     supabase
       .from("games")
       .select("*, home_team:home_team_id(*), away_team:away_team_id(*)")
-      .in("status", ["live", "final"])
+      .in("status", ["live", "final", "scheduled"])
       .gte("scheduled_at", last24h)
-      .order("scheduled_at", { ascending: false })
+        .lte("scheduled_at", next36h)
+        .order("scheduled_at", { ascending: true })
       .limit(20),
     supabase
       .from("series")
