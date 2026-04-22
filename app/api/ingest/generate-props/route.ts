@@ -61,38 +61,48 @@ function clampGoalsLine(raw: number): number {
 }
 
 async function fetchClubData(teamAbbrev: string): Promise<TeamClubData | null> {
+  const url = `https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/20252026/2`;
   try {
-    const res = await fetch(`https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/now`);
-    if (!res.ok) return null;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.log(`[${teamAbbrev}] FETCH FAIL: ${res.status} ${res.statusText} on ${url}`);
+      return null;
+    }
     const data: any = await res.json();
     const skaters: Skater[] = data.skaters ?? [];
     const goalies: Goalie[] = data.goalies ?? [];
+    console.log(`[${teamAbbrev}] got ${skaters.length} skaters, ${goalies.length} goalies`);
+
     const eligibleSkaters = skaters.filter((s) => s.positionCode !== "G");
-    if (eligibleSkaters.length === 0) return null;
-    // Debug logs: what fields does the API actually expose?
+    if (eligibleSkaters.length === 0) {
+      console.log(`[${teamAbbrev}] FAIL: 0 eligible skaters after G filter. raw skater count=${skaters.length}`);
+      if (skaters[0]) console.log(`[${teamAbbrev}] sample keys: ${Object.keys(skaters[0]).sort().join(",")}`);
+      return null;
+    }
     if (eligibleSkaters[0]) {
       const s0 = eligibleSkaters[0] as any;
-      console.log(`[${teamAbbrev}] sample skater keys: ${Object.keys(s0).sort().join(",")}`);
-      console.log(`[${teamAbbrev}] sample skater name=${s0.firstName?.default} ${s0.lastName?.default} points=${s0.points} goals=${s0.goals} assists=${s0.assists} gp=${s0.gamesPlayed}`);
+      console.log(`[${teamAbbrev}] sample keys: ${Object.keys(s0).sort().join(",")}`);
+      console.log(`[${teamAbbrev}] s0 ${s0.firstName?.default} ${s0.lastName?.default} points=${s0.points} goals=${s0.goals} gp=${s0.gamesPlayed}`);
     }
     const topThree = [...eligibleSkaters]
       .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
       .slice(0, 3)
       .map((s) => `${s.firstName?.default} ${s.lastName?.default}(${s.points ?? "?"}pts,${s.gamesPlayed ?? "?"}gp)`)
       .join(", ");
-    console.log(`[${teamAbbrev}] top3 by points: ${topThree} | teamPIM/GP: ${(totalPim / Math.max(maxGP, 1)).toFixed(2)}`);
-
     const totalPim = skaters.reduce((sum, s) => sum + (s.penaltyMinutes ?? s.pim ?? 0), 0);
     const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
     const teamPimPerGame = maxGP > 0 ? totalPim / maxGP : null;
     const totalGoals = skaters.reduce((sum, s) => sum + (s.goals ?? 0), 0);
     const teamGoalsPerGame = maxGP > 0 ? totalGoals / maxGP : null;
+    console.log(`[${teamAbbrev}] top3: ${topThree} | teamPIM/GP: ${(teamPimPerGame ?? 0).toFixed(2)}`);
 
     return { abbrev: teamAbbrev, skaters: eligibleSkaters, goalies, teamPimPerGame, teamGoalsPerGame };
-  } catch {
+  } catch (e: any) {
+    console.log(`[${teamAbbrev}] EXCEPTION: ${e?.message} | url=${url}`);
     return null;
   }
 }
+
 
 async function getPlayoffPimAverage(supabase: any, seriesId: string | null): Promise<number | null> {
   if (!seriesId) return null;
