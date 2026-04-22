@@ -5,6 +5,41 @@ export const maxDuration = 60;
 
 const INGEST_SECRET = process.env.INGEST_SHARED_SECRET;
 
+type PlayerStat = {
+  name: string;
+  team: string;
+  goals: number;
+  assists: number;
+  points: number;
+  pim: number;
+};
+
+type GoalieStat = {
+  name: string;
+  team: string;
+  saves: number;
+  shotsAgainst: number;
+  goalsAgainst: number;
+  toi: string;
+  starter: boolean;
+};
+
+function parseSaves(p: any): { saves: number; shotsAgainst: number; goalsAgainst: number } {
+  // saveShotsAgainst is a string like "28/30" (saves / shots)
+  const ssa: string = p.saveShotsAgainst ?? "";
+  let saves = 0;
+  let shotsAgainst = 0;
+  if (ssa.includes("/")) {
+    const [s, sh] = ssa.split("/").map((x: string) => parseInt(x.trim() || "0", 10));
+    saves = s || 0;
+    shotsAgainst = sh || 0;
+  } else {
+    shotsAgainst = p.shotsAgainst ?? 0;
+    saves = shotsAgainst - (p.goalsAgainst ?? 0);
+  }
+  return { saves, shotsAgainst, goalsAgainst: p.goalsAgainst ?? 0 };
+}
+
 export async function POST(request: Request) {
   const secret = request.headers.get("x-ingest-secret");
   if (!INGEST_SECRET || secret !== INGEST_SECRET) {
@@ -30,13 +65,13 @@ export async function POST(request: Request) {
   const homeScore = box.homeTeam?.score ?? 0;
   const awayScore = box.awayTeam?.score ?? 0;
 
-  // Build player stats from boxscore
-  const playerStats: { name: string; team: string; goals: number; assists: number; points: number; pim: number; }[] = [];
+  const playerStats: PlayerStat[] = [];
   const playerLookup: Record<string, { points: number; team: string; pim: number }> = {};
+  const goalieLookup: Record<string, GoalieStat> = {};
 
   const collect = (side: any, abbrev: string) => {
     if (!side) return;
-    for (const grp of ["forwards", "defense", "defensemen", "goalies"]) {
+    for (const grp of ["forwards", "defense", "defensemen"]) {
       for (const p of side[grp] ?? []) {
         const name = p.name?.default ?? "";
         if (!name) continue;
@@ -48,11 +83,35 @@ export async function POST(request: Request) {
         playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim };
       }
     }
+    for (const p of side.goalies ?? []) {
+      const name = p.name?.default ?? "";
+      if (!name) continue;
+      const { saves, shotsAgainst, goalsAgainst } = parseSaves(p);
+      goalieLookup[name.toLowerCase().trim()] = {
+        name,
+        team: abbrev,
+        saves,
+        shotsAgainst,
+        goalsAgainst,
+        toi: p.toi ?? "",
+        starter: p.starter ?? false,
+      };
+      // Also include goalie in playerStats (for pim aggregation)
+      playerStats.push({
+        name,
+        team: abbrev,
+        goals: 0,
+        assists: 0,
+        points: 0,
+        pim: p.pim ?? p.penaltyMinutes ?? 0,
+      });
+    }
   };
   collect(box.playerByGameStats?.homeTeam, homeAbbrev);
   collect(box.playerByGameStats?.awayTeam, awayAbbrev);
 
   const totalPim = playerStats.reduce((sum, p) => sum + (p.pim ?? 0), 0);
+  const totalGoals = homeScore + awayScore;
 
   const supabase = createServiceClient();
 
@@ -69,39 +128,68 @@ export async function POST(request: Request) {
     })
     .eq("id", game_id);
 
-  // Find props for this game
-  const labelPrefixes = [`${awayAbbrev} @ ${homeAbbrev}`, `${homeAbbrev} @ ${awayAbbrev}`];
+  // Strict game_id match — no more fuzzy game_label LIKE (prevents cross-game pollution)
   const { data: props } = await supabase
     .from("props")
     .select("*")
-    .or(`game_id.eq.${game_id},metadata->>game_label.like.${labelPrefixes[0]}%,metadata->>game_label.like.${labelPrefixes[1]}%`)
+    .eq("game_id", game_id)
     .neq("status", "resolved");
 
   const resolved: any[] = [];
+  const getLast = (full: string) => {
+    const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
+    return parts[parts.length - 1] ?? "";
+  };
 
   for (const prop of props ?? []) {
     let outcome: any = null;
 
     if (prop.prop_type === "h2h_player") {
-      const getLast = (full: string) => {
-        const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
-        return parts[parts.length - 1] ?? "";
-      };
+      const stat = prop.metadata?.stat ?? "points";
       const aLast = getLast(prop.metadata?.player_a_name ?? "");
       const bLast = getLast(prop.metadata?.player_b_name ?? "");
       const aEntry = Object.entries(playerLookup).find(([k]) => getLast(k) === aLast);
       const bEntry = Object.entries(playerLookup).find(([k]) => getLast(k) === bLast);
-      const aPts = aEntry?.[1]?.points ?? 0;
-      const bPts = bEntry?.[1]?.points ?? 0;
-      const winner = aPts > bPts ? "a" : bPts > aPts ? "b" : "tie";
-      outcome = { winner, player_a_pts: aPts, player_b_pts: bPts };
+      const readStat = (entry: any) => {
+        if (!entry) return 0;
+        if (stat === "pim") return entry[1]?.pim ?? 0;
+        // Default: points (covers points/shots fallthrough — shots not in boxscore top-level, use points)
+        return entry[1]?.points ?? 0;
+      };
+      const aVal = readStat(aEntry);
+      const bVal = readStat(bEntry);
+      const winner = aVal > bVal ? "a" : bVal > aVal ? "b" : "tie";
+      outcome = { winner, stat, player_a_value: aVal, player_b_value: bVal };
+
+    } else if (prop.prop_type === "h2h_goalie") {
+      const aLast = getLast(prop.metadata?.player_a_name ?? "");
+      const bLast = getLast(prop.metadata?.player_b_name ?? "");
+      const aEntry = Object.entries(goalieLookup).find(([k]) => getLast(k) === aLast);
+      const bEntry = Object.entries(goalieLookup).find(([k]) => getLast(k) === bLast);
+      const aSaves = aEntry?.[1]?.saves ?? 0;
+      const bSaves = bEntry?.[1]?.saves ?? 0;
+      const winner = aSaves > bSaves ? "a" : bSaves > aSaves ? "b" : "tie";
+      outcome = { winner, stat: "saves", player_a_value: aSaves, player_b_value: bSaves };
+
     } else if (prop.prop_type === "game_total_pim") {
       const line = parseFloat(prop.metadata?.line ?? "0");
       const result = totalPim > line ? "over" : totalPim < line ? "under" : "push";
-      outcome = { result, total_pim: totalPim };
+      outcome = { result, total_pim: totalPim, line };
+
+    } else if (prop.prop_type === "game_total_goals") {
+      const line = parseFloat(prop.metadata?.line ?? "0");
+      const result = totalGoals > line ? "over" : totalGoals < line ? "under" : "push";
+      outcome = { result, total_goals: totalGoals, line };
+
+    } else if (prop.prop_type === "game_winner") {
+      // Picker choice is stored as team abbrev (home_team or away_team)
+      const winnerAbbrev = homeScore > awayScore ? homeAbbrev : awayScore > homeScore ? awayAbbrev : "tie";
+      outcome = { winner_team: winnerAbbrev, home_score: homeScore, away_score: awayScore, home_team: homeAbbrev, away_team: awayAbbrev };
+
     } else if (prop.prop_type === "next_team_to_score") {
       await supabase.from("props").update({ status: "void", resolved_at: new Date().toISOString() }).eq("id", prop.id);
       continue;
+
     } else {
       continue;
     }
@@ -114,7 +202,12 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     game_id,
-    final: { home: `${homeAbbrev} ${homeScore}`, away: `${awayAbbrev} ${awayScore}`, totalPIM: totalPim },
+    final: {
+      home: `${homeAbbrev} ${homeScore}`,
+      away: `${awayAbbrev} ${awayScore}`,
+      totalPIM: totalPim,
+      totalGoals,
+    },
     resolved,
   });
 }
