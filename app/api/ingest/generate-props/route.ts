@@ -148,8 +148,8 @@ function pickStarterGoalie(t: TeamClubData): Goalie | null {
     .filter((g) => (g.gamesPlayed ?? 0) >= 5)
     .sort((a, b) => (b.gamesPlayed ?? 0) - (a.gamesPlayed ?? 0))[0] ?? null;
 }
-function headshotUrl(playerId: number): string {
-  return `https://assets.nhle.com/mugs/nhl/20252026/${playerId}.png`;
+function headshotUrl(playerId: number, teamAbbrev: string): string {
+  return `https://assets.nhle.com/mugs/nhl/20252026/${teamAbbrev}/${playerId}.png`;
 }
 function playerName(p: { firstName?: { default: string }; lastName?: { default: string } }): string {
   return `${p.firstName?.default ?? ""} ${p.lastName?.default ?? ""}`.trim();
@@ -343,11 +343,11 @@ export async function POST(request: Request) {
               player_a_name: playerName(spec.a),
               player_a_team: away,
               player_a_id: spec.a.playerId,
-              player_a_headshot: headshotUrl(spec.a.playerId),
+              player_a_headshot: headshotUrl(spec.a.playerId, away),
               player_b_name: playerName(spec.b),
               player_b_team: home,
               player_b_id: spec.b.playerId,
-              player_b_headshot: headshotUrl(spec.b.playerId),
+              player_b_headshot: headshotUrl(spec.b.playerId, home),
             },
           });
           descriptions.push(`H2H ${stat}: ${playerName(spec.a)} vs ${playerName(spec.b)}`);
@@ -366,11 +366,11 @@ export async function POST(request: Request) {
               player_a_name: playerName(spec.a),
               player_a_team: away,
               player_a_id: spec.a.playerId,
-              player_a_headshot: headshotUrl(spec.a.playerId),
+              player_a_headshot: headshotUrl(spec.a.playerId, away),
               player_b_name: playerName(spec.b),
               player_b_team: home,
               player_b_id: spec.b.playerId,
-              player_b_headshot: headshotUrl(spec.b.playerId),
+              player_b_headshot: headshotUrl(spec.b.playerId, home),
             },
           });
           descriptions.push(`Goalie duel: ${playerName(spec.a)} vs ${playerName(spec.b)}`);

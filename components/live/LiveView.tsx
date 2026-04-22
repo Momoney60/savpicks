@@ -114,7 +114,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
                     <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} game={game} />
-                    {!isScheduled && <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />}
+                    <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />
                     <PropResultBanner prop={p} game={game} />
                   </div>
                 ))}
@@ -295,8 +295,9 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     bySel[sel].push(p.user_id!);
   });
 
-  const sideAUsers = bySel[opts[0].value] ?? [];
-  const sideBUsers = bySel[opts[1].value] ?? [];
+  const isScheduled = game.status === "scheduled";
+  const sideAUsers = isScheduled ? [] : (bySel[opts[0].value] ?? []);
+  const sideBUsers = isScheduled ? [] : (bySel[opts[1].value] ?? []);
 
   const renderHeader = (isA: boolean) => {
     const opt = isA ? opts[0] : opts[1];
@@ -382,20 +383,32 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
         <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
           {renderHeader(true)}
-          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-            {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
-          </div>
-          {renderChips(sideAUsers)}
+          {isScheduled ? (
+            <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-600">Revealed at puck drop</div>
+          ) : (
+            <>
+              <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+                {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
+              </div>
+              {renderChips(sideAUsers)}
+            </>
+          )}
         </div>
         <div className="flex h-full items-center pt-3">
           <span className="font-mono text-[10px] font-black text-ink-600">VS</span>
         </div>
         <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
           {renderHeader(false)}
-          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-            {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
-          </div>
-          {renderChips(sideBUsers)}
+          {isScheduled ? (
+            <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-600">Revealed at puck drop</div>
+          ) : (
+            <>
+              <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+                {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
+              </div>
+              {renderChips(sideBUsers)}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -589,7 +602,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
           {locked && <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">🔒</span>}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      {!locked && <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const picked = selection === opt.value;
           return (
@@ -608,7 +621,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
             </button>
           );
         })}
-      </div>
+      </div>}
       {errorMsg && <div className="mt-2 rounded-lg border border-loss/40 bg-loss/10 px-3 py-1.5 text-[11px] font-semibold text-loss">{errorMsg}</div>}
     </div>
   );
