@@ -599,7 +599,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
         {options.map((opt) => {
           const picked = selection === opt.value;
           return (
-            <button key={opt.value} onClick={() => pick(opt.value)} disabled={locked} className={cn("relative flex flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ease-out", picked ? "border-white bg-brand shadow-[0_0_0_2px_rgb(125_211_252/0.45),0_10px_22px_-4px_rgb(125_211_252/0.3)]" : "border-ink-700 bg-ink-900/60", !locked && !picked && "active:scale-[0.98] active:bg-ink-800", locked && "cursor-not-allowed opacity-80")}>
+            <button key={opt.value} onClick={() => pick(opt.value)} disabled={locked} className={cn("relative flex flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition", picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60", !locked && !picked && "active:scale-[0.98] active:bg-ink-800", locked && "cursor-not-allowed opacity-80")}>
               {opt.image && opt.imageType === "headshot" && (
                 <img src={opt.image} alt="" className="h-11 w-11 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
               )}
@@ -607,10 +607,10 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
                 <img src={opt.image} alt="" className="h-11 w-11 flex-none object-contain" />
               )}
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className={cn("font-mono text-[9px] font-bold uppercase tracking-wider", picked ? "text-ink-900/70" : "text-ink-500")}>{opt.subtitle}</span>
-                <span className={cn("font-display text-[13px] font-medium leading-tight", picked ? "text-ink-950" : "text-ink-100")}>{opt.label}</span>
+                <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
+                <span className={cn("font-display text-[13px] font-bold leading-tight", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
               </div>
-              {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-ink-950">✓</span>}
+              {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>}
             </button>
           );
         })}
