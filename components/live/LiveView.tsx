@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
 
 type Team = { id: string; short_name: string; primary_color: string | null; logo_url: string | null; is_eliminated: boolean; };
@@ -34,7 +34,7 @@ type Prop = {
   metadata: any;
 };
 
-type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any };
+type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any; is_correct?: boolean | null };
 type PublicUser = { user_id: string; gamertag: string };
 
 function propMatchesGame(prop: Prop, game: Game): boolean {
@@ -76,6 +76,7 @@ export default function LiveView({ games, props, myPicks, allPropPicks = [], use
 }
 
 function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: { game: Game; props: Prop[]; myPicks: PropPick[]; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; }) {
+  const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
   const isLive = game.status === "live";
   const isFinal = game.status === "final";
   const isScheduled = game.status === "scheduled";
@@ -83,6 +84,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
   const [collapsed, setCollapsed] = useState<boolean>(isFinal);
 
   return (
+    <>
     <motion.div layout className={cn("overflow-hidden rounded-3xl border bg-ink-850", isLive ? "border-live/60 shadow-tier-live" : isFinal ? "border-ink-700/40 shadow-tier-1" : "border-ink-700/70 shadow-tier-2")}>
       <button onClick={() => isFinal && setCollapsed(!collapsed)} className={cn("w-full text-left", isFinal && "active:opacity-80 cursor-pointer")} disabled={!isFinal}>
         <StatusStrip game={game} />
@@ -112,7 +114,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
                     <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
-                    {!isScheduled && <PickerStrip prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} />}
+                    {!isScheduled && <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />}
                     <PropResultBanner prop={p} game={game} />
                   </div>
                 ))}
@@ -122,6 +124,12 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
         </>
       )}
     </motion.div>
+    <AnimatePresence>
+      {drawerUserId && (
+        <UserPicksDrawer userId={drawerUserId} users={users} propsForGame={props} allPropPicks={allPropPicks} onClose={() => setDrawerUserId(null)} />
+      )}
+    </AnimatePresence>
+    </>
   );
 }
 
@@ -257,53 +265,228 @@ function StatCell({ label, sub, value, unit, highlight }: { label: string; sub: 
   );
 }
 
-function PickerStrip({ prop, allPropPicks, users, currentUserId, game }: { prop: Prop; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; game: Game; }) {
-  const propPicks = allPropPicks.filter((p) => p.prop_id === prop.id && p.user_id);
-  if (propPicks.length === 0 || users.length === 0) return null;
-  const userMap = Object.fromEntries(users.map((u) => [u.user_id, u.gamertag]));
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
-  // Group picks by selection
+const CHIP_COLORS = ["bg-pink-600", "bg-rose-600", "bg-orange-600", "bg-amber-600", "bg-lime-600", "bg-emerald-600", "bg-teal-600", "bg-cyan-600", "bg-sky-600", "bg-indigo-600", "bg-violet-600", "bg-fuchsia-600"];
+
+function chipColor(userId: string): string {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) {
+    h = (h << 5) - h + userId.charCodeAt(i);
+    h |= 0;
+  }
+  return CHIP_COLORS[Math.abs(h) % CHIP_COLORS.length];
+}
+
+function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick }: { prop: Prop; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; game: Game; onChipClick: (userId: string) => void; }) {
+  const userMap = Object.fromEntries(users.map((u) => [u.user_id, u.gamertag]));
+  const propPicks = allPropPicks.filter((p) => p.prop_id === prop.id && p.user_id);
+  const opts = getPropOptions(prop);
+  if (opts === undefined || opts.length < 2) return null;
+
   const bySel: Record<string, string[]> = {};
   propPicks.forEach((p) => {
     const sel = String(p.selection);
-    if (!bySel[sel]) bySel[sel] = [];
+    if (bySel[sel] === undefined) bySel[sel] = [];
     bySel[sel].push(p.user_id!);
   });
 
-  // Get the two side labels for this prop
-  const opts = getPropOptions(prop);
+  const sideAUsers = bySel[opts[0].value] ?? [];
+  const sideBUsers = bySel[opts[1].value] ?? [];
 
-  return (
-    <div className="border-t border-ink-700/30 bg-ink-900/20 px-5 py-2">
-      <div className="flex items-center justify-between gap-3">
-        {opts.map((opt) => {
-          const userIds = bySel[opt.value] ?? [];
-          const shown = userIds.slice(0, 6);
-          const more = userIds.length - shown.length;
-          const sideLabel = opt.subtitle === "O/U" ? opt.label : opt.subtitle;
-          return (
-            <div key={opt.value} className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{sideLabel}</span>
-              <div className="flex flex-wrap items-center gap-1">
-                {shown.map((uid) => {
-                  const isMe = uid === currentUserId;
-                  const name = userMap[uid] ?? "?";
-                  const tag = name.slice(0, 3).toUpperCase();
-                  return (
-                    <span key={uid} title={name} className={cn("rounded-md px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider", isMe ? "bg-brand text-ink-900" : "bg-ink-700 text-ink-200")}>
-                      {tag}
-                    </span>
-                  );
-                })}
-                {more > 0 && (
-                  <span className="rounded-md bg-ink-800 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-ink-400">+{more}</span>
-                )}
-              </div>
+  const renderHeader = (isA: boolean) => {
+    const opt = isA ? opts[0] : opts[1];
+    if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
+      const name = isA ? prop.metadata?.player_a_name : prop.metadata?.player_b_name;
+      const team = isA ? prop.metadata?.player_a_team : prop.metadata?.player_b_team;
+      const headshot = isA ? prop.metadata?.player_a_headshot : prop.metadata?.player_b_headshot;
+      return (
+        <div className="flex items-center gap-2">
+          {headshot ? (
+            <img src={headshot} alt={name} className="h-9 w-9 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+          ) : (
+            <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink-700 font-mono text-[9px] font-black text-ink-300">
+              {lastName(name ?? "").slice(0, 2).toUpperCase()}
             </div>
+          )}
+          <div className="min-w-0">
+            <div className="truncate font-display text-[12px] font-bold leading-tight text-ink-100">{lastName(name ?? "")}</div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{team}</div>
+          </div>
+        </div>
+      );
+    }
+    if (prop.prop_type === "game_winner") {
+      const teamObj = isA ? game.away_team : game.home_team;
+      return (
+        <div className="flex items-center gap-2">
+          {teamObj?.logo_url ? (
+            <img src={teamObj.logo_url} alt={teamObj.short_name} className="h-9 w-9 flex-none object-contain" />
+          ) : (
+            <div className="h-9 w-9 flex-none rounded-full bg-ink-700" />
+          )}
+          <div className="min-w-0">
+            <div className="truncate font-display text-[12px] font-bold leading-tight text-ink-100">{teamObj?.short_name ?? opt.value}</div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{isA ? "AWAY" : "HOME"}</div>
+          </div>
+        </div>
+      );
+    }
+    const arrow = opt.value === "over" ? "\u25b2" : "\u25bc";
+    const dirLabel = opt.value === "over" ? "OVER" : "UNDER";
+    return (
+      <div className="flex items-center gap-2">
+        <span className="font-display text-[18px] font-black text-ink-300">{arrow}</span>
+        <div>
+          <div className="font-display text-[12px] font-bold leading-tight text-ink-100">{dirLabel}</div>
+          <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{prop.metadata?.line ?? "-"}</div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderChips = (userIds: string[]) => {
+    if (userIds.length === 0) {
+      return <div className="mt-2 italic text-[10px] text-ink-600">No picks yet</div>;
+    }
+    return (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {userIds.map((uid) => {
+          const name = userMap[uid] ?? "?";
+          const isMe = uid === currentUserId;
+          return (
+            <button
+              key={uid}
+              onClick={() => { haptic("light"); onChipClick(uid); }}
+              title={name}
+              className={cn(
+                "inline-flex h-6 w-6 items-center justify-center rounded-full font-mono text-[9px] font-black text-white transition-transform active:scale-90",
+                chipColor(uid),
+                isMe && "ring-2 ring-brand ring-offset-2 ring-offset-ink-900"
+              )}
+            >
+              {getInitials(name)}
+            </button>
           );
         })}
       </div>
+    );
+  };
+
+  return (
+    <div className="border-t border-ink-700/30 bg-ink-900/20 px-4 py-3">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+        <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
+          {renderHeader(true)}
+          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+            {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
+          </div>
+          {renderChips(sideAUsers)}
+        </div>
+        <div className="flex h-full items-center pt-3">
+          <span className="font-mono text-[10px] font-black text-ink-600">VS</span>
+        </div>
+        <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
+          {renderHeader(false)}
+          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+            {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
+          </div>
+          {renderChips(sideBUsers)}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function UserPicksDrawer({ userId, users, propsForGame, allPropPicks, onClose }: { userId: string; users: PublicUser[]; propsForGame: Prop[]; allPropPicks: PropPick[]; onClose: () => void; }) {
+  const user = users.find((u) => u.user_id === userId);
+  const gamertag = user?.gamertag ?? "?";
+  const userPicks = allPropPicks.filter((p) => p.user_id === userId);
+  const propIds = new Set(propsForGame.map((p) => p.id));
+  const picksForGame = userPicks.filter((p) => propIds.has(p.prop_id));
+
+  const propLabelOf = (prop: Prop): string => {
+    if (prop.prop_type === "h2h_player") return `${prop.metadata?.player_a_name ?? "?"} vs ${prop.metadata?.player_b_name ?? "?"}`;
+    if (prop.prop_type === "h2h_goalie") return `${prop.metadata?.player_a_name ?? "?"} vs ${prop.metadata?.player_b_name ?? "?"}`;
+    if (prop.prop_type === "game_total_pim") return `PIMs O/U ${prop.metadata?.line ?? "-"}`;
+    if (prop.prop_type === "game_total_goals") return `Goals O/U ${prop.metadata?.line ?? "-"}`;
+    if (prop.prop_type === "game_winner") return "Game Winner";
+    return "";
+  };
+  const selectionLabelOf = (prop: Prop, selection: any): string => {
+    const sel = String(selection);
+    if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
+      return sel === "a" ? (prop.metadata?.player_a_name ?? "A") : (prop.metadata?.player_b_name ?? "B");
+    }
+    if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
+      return sel === "over" ? `Over ${prop.metadata?.line ?? "-"}` : `Under ${prop.metadata?.line ?? "-"}`;
+    }
+    return sel;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+    >
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-ink-700 bg-ink-850 p-6 pb-10 shadow-tier-4"
+      >
+        <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-ink-600" />
+        <div className="mb-5 flex items-center gap-3">
+          <div className={cn("flex h-14 w-14 items-center justify-center rounded-full font-mono text-[16px] font-black text-white", chipColor(userId))}>
+            {getInitials(gamertag)}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate font-display text-[20px] font-black leading-tight text-ink-100">{gamertag}</div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">Picks this game</div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {propsForGame.length === 0 ? (
+            <div className="py-8 text-center text-[12px] text-ink-500">No props this game</div>
+          ) : (
+            propsForGame.map((prop) => {
+              const pick = picksForGame.find((p) => p.prop_id === prop.id);
+              const isResolved = prop.status === "resolved" || prop.status === "locked";
+              return (
+                <div key={prop.id} className="rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-2.5">
+                  <div className="truncate font-display text-[11px] font-bold text-ink-300">{propLabelOf(prop)}</div>
+                  {pick ? (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="truncate font-display text-[14px] font-black text-ink-100">{selectionLabelOf(prop, pick.selection)}</span>
+                      {isResolved && pick.is_correct === true && (
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-brand/15 px-1 font-mono text-[11px] font-black text-brand">+{prop.points_reward}</span>
+                      )}
+                      {isResolved && pick.is_correct === false && (
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-rink-red/20 px-1 font-mono text-[11px] font-black text-rink-red">X</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-1 italic text-[11px] text-ink-600">No pick</div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+        <button onClick={onClose} className="mt-5 w-full rounded-xl border border-ink-700 bg-ink-800 py-3 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-300 transition active:scale-[0.98]">
+          Close
+        </button>
+      </motion.div>
+    </motion.div>
   );
 }
 
