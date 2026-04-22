@@ -113,7 +113,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
               <div className="divide-y divide-ink-700/40">
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
-                    <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} />
+                    <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} game={game} />
                     {!isScheduled && <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />}
                     <PropResultBanner prop={p} game={game} />
                   </div>
@@ -285,7 +285,7 @@ function chipColor(userId: string): string {
 function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick }: { prop: Prop; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; game: Game; onChipClick: (userId: string) => void; }) {
   const userMap = Object.fromEntries(users.map((u) => [u.user_id, u.gamertag]));
   const propPicks = allPropPicks.filter((p) => p.prop_id === prop.id && p.user_id);
-  const opts = getPropOptions(prop);
+  const opts = getPropOptions(prop, game);
   if (opts === undefined || opts.length < 2) return null;
 
   const bySel: Record<string, string[]> = {};
@@ -546,11 +546,11 @@ function TeamLine({ team, score, live, winning, final, scheduled }: { team: Team
   );
 }
 
-function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }) {
+function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: PropPick; game?: Game }) {
   const [selection, setSelection] = useState<string | null>(existingPick ? String(existingPick.selection) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
-  const options = getPropOptions(prop);
+  const options = getPropOptions(prop, game);
   const label = (
     prop.prop_type === "h2h_player"
       ? (prop.metadata?.stat === "pim" ? "PIM Duel" : prop.metadata?.stat === "shots" ? "Shots Duel" : "Points Duel")
@@ -593,9 +593,17 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
         {options.map((opt) => {
           const picked = selection === opt.value;
           return (
-            <button key={opt.value} onClick={() => pick(opt.value)} disabled={locked} className={cn("relative flex flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition", picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60", !locked && !picked && "active:scale-[0.98] active:bg-ink-800", locked && "cursor-not-allowed opacity-80")}>
-              <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
-              <span className={cn("font-display text-[13px] font-bold", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
+            <button key={opt.value} onClick={() => pick(opt.value)} disabled={locked} className={cn("relative flex flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition", picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60", !locked && !picked && "active:scale-[0.98] active:bg-ink-800", locked && "cursor-not-allowed opacity-80")}>
+              {opt.image && opt.imageType === "headshot" && (
+                <img src={opt.image} alt="" className="h-11 w-11 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+              )}
+              {opt.image && opt.imageType === "logo" && (
+                <img src={opt.image} alt="" className="h-11 w-11 flex-none object-contain" />
+              )}
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
+                <span className={cn("truncate font-display text-[13px] font-bold", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
+              </div>
               {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>}
             </button>
           );
@@ -732,13 +740,13 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
   return null;
 }
 
-function getPropOptions(prop: Prop): { value: string; label: string; subtitle: string }[] {
+function getPropOptions(prop: Prop, game?: Game): { value: string; label: string; subtitle: string; image?: string; imageType?: "headshot" | "logo" }[] {
   switch (prop.prop_type) {
     case "h2h_player":
     case "h2h_goalie":
       return [
-        { value: "a", label: prop.metadata?.player_a_name ?? "Player A", subtitle: prop.metadata?.player_a_team ?? "A" },
-        { value: "b", label: prop.metadata?.player_b_name ?? "Player B", subtitle: prop.metadata?.player_b_team ?? "B" },
+        { value: "a", label: prop.metadata?.player_a_name ?? "Player A", subtitle: prop.metadata?.player_a_team ?? "A", image: prop.metadata?.player_a_headshot, imageType: "headshot" },
+        { value: "b", label: prop.metadata?.player_b_name ?? "Player B", subtitle: prop.metadata?.player_b_team ?? "B", image: prop.metadata?.player_b_headshot, imageType: "headshot" },
       ];
     case "game_total_pim":
     case "game_total_goals":
@@ -748,8 +756,8 @@ function getPropOptions(prop: Prop): { value: string; label: string; subtitle: s
       ];
     case "game_winner":
       return [
-        { value: prop.metadata?.away_team ?? "AWAY", label: prop.metadata?.away_team ?? "Away", subtitle: "AWAY" },
-        { value: prop.metadata?.home_team ?? "HOME", label: prop.metadata?.home_team ?? "Home", subtitle: "HOME" },
+        { value: prop.metadata?.away_team ?? "AWAY", label: game?.away_team?.short_name ?? prop.metadata?.away_team ?? "Away", subtitle: "AWAY", image: game?.away_team?.logo_url ?? undefined, imageType: "logo" },
+        { value: prop.metadata?.home_team ?? "HOME", label: game?.home_team?.short_name ?? prop.metadata?.home_team ?? "Home", subtitle: "HOME", image: game?.home_team?.logo_url ?? undefined, imageType: "logo" },
       ];
     case "next_team_to_score":
       return [
