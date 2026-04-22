@@ -62,13 +62,20 @@ function clampGoalsLine(raw: number): number {
 
 async function fetchClubData(teamAbbrev: string): Promise<TeamClubData | null> {
   try {
-    const res = await fetch(`https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/now`);
+    const res = await fetch(`https://api-web.nhle.com/v1/club-stats-season/${teamAbbrev}/20252026`);
     if (!res.ok) return null;
     const data: any = await res.json();
     const skaters: Skater[] = data.skaters ?? [];
     const goalies: Goalie[] = data.goalies ?? [];
     const eligibleSkaters = skaters.filter((s) => s.positionCode !== "G");
     if (eligibleSkaters.length === 0) return null;
+    // Debug: log top 3 skaters' points for visibility into what API returned
+    const topThree = [...eligibleSkaters]
+      .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
+      .slice(0, 3)
+      .map((s) => `${s.firstName?.default} ${s.lastName?.default}(${s.points ?? "?"}pts)`)
+      .join(", ");
+    console.log(`[${teamAbbrev}] top3: ${topThree} | teamPIM/GP: ${(totalPim / Math.max(maxGP, 1)).toFixed(2)}`);
 
     const totalPim = skaters.reduce((sum, s) => sum + (s.penaltyMinutes ?? s.pim ?? 0), 0);
     const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
@@ -107,7 +114,11 @@ async function getLeaguePlayoffPimAverage(supabase: any): Promise<number> {
 }
 
 function pickTopScorer(t: TeamClubData): Skater | null {
-  return [...t.skaters].sort((a, b) => (b.points ?? 0) - (a.points ?? 0))[0] ?? null;
+  // Must have actual points > 0 — defends against API returning no points field
+  const sorted = [...t.skaters]
+    .filter((s) => (s.points ?? 0) > 0)
+    .sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+  return sorted[0] ?? null;
 }
 function pickTopShooter(t: TeamClubData): Skater | null {
   return [...t.skaters].sort((a, b) => (b.shots ?? 0) - (a.shots ?? 0))[0] ?? null;
@@ -284,17 +295,9 @@ export async function POST(request: Request) {
       continue;
     }
 
+    // Simple, deterministic: combined regular-season PIM/GP. Clamped to fair range.
     const seasonPim = (homeData.teamPimPerGame ?? 0) + (awayData.teamPimPerGame ?? 0);
-    const playoffPim = await getPlayoffPimAverage(supabase, seriesId);
-    let pimRaw: number;
-    if (playoffPim !== null) {
-      pimRaw = 0.7 * playoffPim + 0.3 * seasonPim;
-    } else if (seasonPim > 0) {
-      pimRaw = 0.7 * seasonPim + 0.3 * leaguePimAvg;
-    } else {
-      pimRaw = leaguePimAvg;
-    }
-    const pimLine = clampPimLine(pimRaw);
+    const pimLine = clampPimLine(seasonPim > 0 ? seasonPim : leaguePimAvg);
 
     const seasonGoals = (homeData.teamGoalsPerGame ?? 0) + (awayData.teamGoalsPerGame ?? 0);
     const goalsRaw = seasonGoals > 0 ? 0.5 * seasonGoals + 0.5 * leagueGoalsBaseline : leagueGoalsBaseline;
