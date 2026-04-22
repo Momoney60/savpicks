@@ -335,7 +335,16 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
   const options = getPropOptions(prop);
-  const label = { h2h_player: "Grudge Match", h2h_goalie: "Goalie Duel", game_total_pim: "Penalty Minutes", game_total_goals: "Total Goals", game_winner: "Game Winner", next_team_to_score: "Next Goal" }[prop.prop_type];
+  const label = (
+    prop.prop_type === "h2h_player"
+      ? (prop.metadata?.stat === "pim" ? "PIM Duel" : prop.metadata?.stat === "shots" ? "Shots Duel" : "Points Duel")
+      : prop.prop_type === "h2h_goalie" ? "Saves Duel"
+      : prop.prop_type === "game_total_pim" ? "Total PIMs"
+      : prop.prop_type === "game_total_goals" ? "Total Goals"
+      : prop.prop_type === "game_winner" ? "Game Winner"
+      : prop.prop_type === "next_team_to_score" ? "Next Goal"
+      : ""
+  );
   const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, h2h_goalie: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, game_total_goals: `Line · ${prop.metadata?.line ?? "—"}`, game_winner: `${prop.metadata?.away_team ?? "AWAY"} @ ${prop.metadata?.home_team ?? "HOME"}`, next_team_to_score: "Who scores next?" }[prop.prop_type];
 
   async function pick(val: string) {
