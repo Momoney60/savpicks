@@ -62,20 +62,25 @@ function clampGoalsLine(raw: number): number {
 
 async function fetchClubData(teamAbbrev: string): Promise<TeamClubData | null> {
   try {
-    const res = await fetch(`https://api-web.nhle.com/v1/club-stats-season/${teamAbbrev}/20252026`);
+    const res = await fetch(`https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/now`);
     if (!res.ok) return null;
     const data: any = await res.json();
     const skaters: Skater[] = data.skaters ?? [];
     const goalies: Goalie[] = data.goalies ?? [];
     const eligibleSkaters = skaters.filter((s) => s.positionCode !== "G");
     if (eligibleSkaters.length === 0) return null;
-    // Debug: log top 3 skaters' points for visibility into what API returned
+    // Debug logs: what fields does the API actually expose?
+    if (eligibleSkaters[0]) {
+      const s0 = eligibleSkaters[0] as any;
+      console.log(`[${teamAbbrev}] sample skater keys: ${Object.keys(s0).sort().join(",")}`);
+      console.log(`[${teamAbbrev}] sample skater name=${s0.firstName?.default} ${s0.lastName?.default} points=${s0.points} goals=${s0.goals} assists=${s0.assists} gp=${s0.gamesPlayed}`);
+    }
     const topThree = [...eligibleSkaters]
       .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
       .slice(0, 3)
-      .map((s) => `${s.firstName?.default} ${s.lastName?.default}(${s.points ?? "?"}pts)`)
+      .map((s) => `${s.firstName?.default} ${s.lastName?.default}(${s.points ?? "?"}pts,${s.gamesPlayed ?? "?"}gp)`)
       .join(", ");
-    console.log(`[${teamAbbrev}] top3: ${topThree} | teamPIM/GP: ${(totalPim / Math.max(maxGP, 1)).toFixed(2)}`);
+    console.log(`[${teamAbbrev}] top3 by points: ${topThree} | teamPIM/GP: ${(totalPim / Math.max(maxGP, 1)).toFixed(2)}`);
 
     const totalPim = skaters.reduce((sum, s) => sum + (s.penaltyMinutes ?? s.pim ?? 0), 0);
     const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
