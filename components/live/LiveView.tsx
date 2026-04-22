@@ -114,7 +114,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
                     <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} game={game} />
-                    <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />
+                    {!isScheduled && <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />}
                     <PropResultBanner prop={p} game={game} />
                   </div>
                 ))}
@@ -295,9 +295,8 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     bySel[sel].push(p.user_id!);
   });
 
-  const isScheduled = game.status === "scheduled";
-  const sideAUsers = isScheduled ? [] : (bySel[opts[0].value] ?? []);
-  const sideBUsers = isScheduled ? [] : (bySel[opts[1].value] ?? []);
+  const sideAUsers = bySel[opts[0].value] ?? [];
+  const sideBUsers = bySel[opts[1].value] ?? [];
 
   const renderHeader = (isA: boolean) => {
     const opt = isA ? opts[0] : opts[1];
@@ -383,32 +382,20 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
         <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
           {renderHeader(true)}
-          {isScheduled ? (
-            <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-600">Revealed at puck drop</div>
-          ) : (
-            <>
-              <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-                {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
-              </div>
-              {renderChips(sideAUsers)}
-            </>
-          )}
+          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+            {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
+          </div>
+          {renderChips(sideAUsers)}
         </div>
         <div className="flex h-full items-center pt-3">
           <span className="font-mono text-[10px] font-black text-ink-600">VS</span>
         </div>
         <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
           {renderHeader(false)}
-          {isScheduled ? (
-            <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-600">Revealed at puck drop</div>
-          ) : (
-            <>
-              <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-                {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
-              </div>
-              {renderChips(sideBUsers)}
-            </>
-          )}
+          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
+            {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
+          </div>
+          {renderChips(sideBUsers)}
         </div>
       </div>
     </div>
@@ -559,21 +546,27 @@ function TeamLine({ team, score, live, winning, final, scheduled }: { team: Team
   );
 }
 
+function getPropBadge(prop: Prop): { text: string; color: string } {
+  if (prop.prop_type === "h2h_player") {
+    const stat = prop.metadata?.stat;
+    if (stat === "pim") return { text: "PIM DUEL", color: "text-rink-red" };
+    if (stat === "shots") return { text: "SHOTS DUEL", color: "text-cyan-400" };
+    return { text: "POINTS DUEL", color: "text-brand" };
+  }
+  if (prop.prop_type === "h2h_goalie") return { text: "SAVES DUEL", color: "text-rink-gold" };
+  if (prop.prop_type === "game_total_pim") return { text: "TOTAL PIMS", color: "text-rink-red" };
+  if (prop.prop_type === "game_total_goals") return { text: "TOTAL GOALS", color: "text-emerald-400" };
+  if (prop.prop_type === "game_winner") return { text: "GAME WINNER", color: "text-brand" };
+  if (prop.prop_type === "next_team_to_score") return { text: "NEXT GOAL", color: "text-brand" };
+  return { text: "", color: "text-ink-100" };
+}
+
 function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: PropPick; game?: Game }) {
   const [selection, setSelection] = useState<string | null>(existingPick ? String(existingPick.selection) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
   const options = getPropOptions(prop, game);
-  const label = (
-    prop.prop_type === "h2h_player"
-      ? (prop.metadata?.stat === "pim" ? "PIM Duel" : prop.metadata?.stat === "shots" ? "Shots Duel" : "Points Duel")
-      : prop.prop_type === "h2h_goalie" ? "Saves Duel"
-      : prop.prop_type === "game_total_pim" ? "Total PIMs"
-      : prop.prop_type === "game_total_goals" ? "Total Goals"
-      : prop.prop_type === "game_winner" ? "Game Winner"
-      : prop.prop_type === "next_team_to_score" ? "Next Goal"
-      : ""
-  );
+  const badge = getPropBadge(prop);
   const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, h2h_goalie: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, game_total_goals: `Line · ${prop.metadata?.line ?? "—"}`, game_winner: `${prop.metadata?.away_team ?? "AWAY"} @ ${prop.metadata?.home_team ?? "HOME"}`, next_team_to_score: "Who scores next?" }[prop.prop_type];
 
   async function pick(val: string) {
@@ -594,7 +587,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
     <div className="px-5 py-3.5">
       <div className="mb-2 flex items-center justify-between">
         <div className="min-w-0">
-          <div className="font-display text-[13px] font-bold leading-tight text-ink-100">{label}</div>
+          <div className={cn("font-display text-[14px] font-black uppercase tracking-wide leading-tight", badge.color)}>{badge.text}</div>
           <div className="mt-0.5 truncate text-[11px] text-ink-400">{sub}</div>
         </div>
         <div className="flex items-center gap-2">
@@ -615,7 +608,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
               )}
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
-                <span className={cn("truncate font-display text-[13px] font-bold", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
+                <span className={cn("font-display text-[13px] font-bold leading-tight", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
               </div>
               {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>}
             </button>
