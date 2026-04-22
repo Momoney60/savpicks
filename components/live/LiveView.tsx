@@ -126,8 +126,11 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
 }
 
 function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
-  const h2hProp = props.find((p) => p.prop_type === "h2h_player");
-  const pimProp = props.find((p) => p.prop_type === "game_total_pim");
+  // Find the h2h matchup prop (player or goalie). Stat = metadata.stat ("points"|"pim"|"shots"|"saves")
+  const h2hProp = props.find((p) => p.prop_type === "h2h_player" || p.prop_type === "h2h_goalie");
+  // Find the game-total prop (pim or goals)
+  const totalProp = props.find((p) => p.prop_type === "game_total_pim" || p.prop_type === "game_total_goals");
+
   const matchByLastName = (full: string) => {
     const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
     const lastName = parts[parts.length - 1];
@@ -140,26 +143,50 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
   const playerA = matchByLastName(h2hProp?.metadata?.player_a_name ?? "");
   const playerB = matchByLastName(h2hProp?.metadata?.player_b_name ?? "");
 
-  if (!h2hProp && !pimProp) return null;
+  // Stat selector: pulls the right field off player_stats based on metadata.stat
+  const h2hStat: string = h2hProp?.prop_type === "h2h_goalie" ? "saves" : (h2hProp?.metadata?.stat ?? "points");
+  const readStat = (p: any): number => {
+    if (!p) return 0;
+    if (h2hStat === "pim") return p.pim ?? 0;
+    if (h2hStat === "saves") return (p as any).saves ?? 0;
+    if (h2hStat === "shots") return (p as any).shots ?? 0;
+    return p.points ?? 0;
+  };
+  const aVal = readStat(playerA);
+  const bVal = readStat(playerB);
+  const statLabel = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
+  const h2hSectionLabel =
+    h2hStat === "pim" ? "PIM Duel" :
+    h2hStat === "saves" ? "Saves Duel" :
+    h2hStat === "shots" ? "Shots Duel" :
+    "Points Duel";
 
-  const totalPim = game.total_pim ?? 0;
-  const line = pimProp ? parseFloat(pimProp.metadata?.line ?? "0") : 0;
-  const pimHighlight = pimProp && totalPim > line;
+  // Total-prop section: read line and current total based on prop type
+  const isGoalsTotal = totalProp?.prop_type === "game_total_goals";
+  const totalLine = totalProp ? parseFloat(totalProp.metadata?.line ?? "0") : 0;
+  const currentTotal = isGoalsTotal
+    ? ((game.home_score ?? 0) + (game.away_score ?? 0))
+    : (game.total_pim ?? 0);
+  const totalUnit = isGoalsTotal ? "goals" : "min";
+  const totalSectionLabel = isGoalsTotal ? "Total Goals" : "Total PIM";
+  const totalHighlight = totalProp && currentTotal > totalLine;
+
+  if (!h2hProp && !totalProp) return null;
 
   return (
     <div className="border-t border-ink-700/50 bg-ink-900/40 px-5 py-3">
       <div className="flex items-stretch gap-4">
-        {pimProp && (
+        {totalProp && (
           <div className="flex-1 border-r border-ink-700/40 pr-4">
             <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-              Line {line}
+              Line {totalLine}
             </div>
-            <div className="font-display text-[11px] font-bold text-ink-200">Total PIM</div>
+            <div className="font-display text-[11px] font-bold text-ink-200">{totalSectionLabel}</div>
             <div className="mt-0.5 flex items-baseline gap-1">
-              <span className={cn("font-display text-[24px] font-black tabular-nums leading-none", pimHighlight ? "text-brand" : "text-ink-100")}>
-                {totalPim}
+              <span className={cn("font-display text-[24px] font-black tabular-nums leading-none", totalHighlight ? "text-brand" : "text-ink-100")}>
+                {currentTotal}
               </span>
-              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">min</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{totalUnit}</span>
             </div>
           </div>
         )}
@@ -167,7 +194,7 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
         {h2hProp && (
           <div className="flex-1 min-w-0">
             <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-              Grudge · H2H
+              {h2hSectionLabel}
             </div>
             <div className="mt-0.5 space-y-1">
               <div className="flex items-center justify-between gap-2">
@@ -175,26 +202,32 @@ function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
                   <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
                     {playerA?.team ?? h2hProp.metadata?.player_a_team ?? ""}
                   </span>
-                  <span className={cn("truncate font-display text-[12px] font-bold", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-200")}>
+                  <span className={cn("truncate font-display text-[12px] font-bold", aVal > bVal ? "text-brand" : "text-ink-200")}>
                     {lastName(h2hProp.metadata?.player_a_name ?? "")}
                   </span>
                 </div>
-                <span className={cn("font-display text-[15px] font-black tabular-nums", (playerA?.points ?? 0) > (playerB?.points ?? 0) ? "text-brand" : "text-ink-300")}>
-                  {playerA?.points ?? 0}
-                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className={cn("font-display text-[15px] font-black tabular-nums", aVal > bVal ? "text-brand" : "text-ink-300")}>
+                    {aVal}
+                  </span>
+                  <span className="font-mono text-[8px] uppercase tracking-wider text-ink-500">{statLabel}</span>
+                </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
                     {playerB?.team ?? h2hProp.metadata?.player_b_team ?? ""}
                   </span>
-                  <span className={cn("truncate font-display text-[12px] font-bold", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-200")}>
+                  <span className={cn("truncate font-display text-[12px] font-bold", bVal > aVal ? "text-brand" : "text-ink-200")}>
                     {lastName(h2hProp.metadata?.player_b_name ?? "")}
                   </span>
                 </div>
-                <span className={cn("font-display text-[15px] font-black tabular-nums", (playerB?.points ?? 0) > (playerA?.points ?? 0) ? "text-brand" : "text-ink-300")}>
-                  {playerB?.points ?? 0}
-                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className={cn("font-display text-[15px] font-black tabular-nums", bVal > aVal ? "text-brand" : "text-ink-300")}>
+                    {bVal}
+                  </span>
+                  <span className="font-mono text-[8px] uppercase tracking-wider text-ink-500">{statLabel}</span>
+                </div>
               </div>
             </div>
           </div>
