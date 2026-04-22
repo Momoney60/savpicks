@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 type Prop = {
   id: string;
-  prop_type: "h2h_player" | "game_total_pim" | "next_team_to_score";
+  prop_type: "h2h_player" | "h2h_goalie" | "game_total_pim" | "game_total_goals" | "game_winner" | "next_team_to_score";
   metadata: any;
   locks_at: string | null;
   status: string;
@@ -47,11 +47,14 @@ export default function PropsLog({
 
   function selectionLabel(prop: Prop, selection: any): string {
     const sel = String(selection);
-    if (prop.prop_type === "h2h_player") {
+    if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
       return sel === "a" ? (prop.metadata?.player_a_name ?? "A") : (prop.metadata?.player_b_name ?? "B");
     }
-    if (prop.prop_type === "game_total_pim") {
+    if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
       return sel === "over" ? ("Over " + prop.metadata?.line) : ("Under " + prop.metadata?.line);
+    }
+    if (prop.prop_type === "game_winner") {
+      return sel; // team abbrev
     }
     return sel;
   }
@@ -59,19 +62,29 @@ export default function PropsLog({
   function winnerLine(prop: Prop): string | null {
     if (!prop.outcome) return null;
     const o = prop.outcome;
-    if (prop.prop_type === "h2h_player") {
+    if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
+      const aVal = o.player_a_value ?? o.player_a_pts ?? 0;
+      const bVal = o.player_b_value ?? o.player_b_pts ?? 0;
+      const unit = o.stat === "saves" ? "sv" : o.stat === "pim" ? "PIM" : "pts";
       if (o.winner === "tie") {
-        return "Push · " + prop.metadata?.player_a_name + " " + o.player_a_pts + " vs " + prop.metadata?.player_b_name + " " + o.player_b_pts;
+        return "Push · " + prop.metadata?.player_a_name + " " + aVal + " vs " + prop.metadata?.player_b_name + " " + bVal;
       }
       const winnerName = o.winner === "a" ? prop.metadata?.player_a_name : prop.metadata?.player_b_name;
       const loserName = o.winner === "a" ? prop.metadata?.player_b_name : prop.metadata?.player_a_name;
-      const wPts = o.winner === "a" ? o.player_a_pts : o.player_b_pts;
-      const lPts = o.winner === "a" ? o.player_b_pts : o.player_a_pts;
-      return "🏆 " + winnerName + " " + wPts + " — " + loserName + " " + lPts;
+      const wVal = o.winner === "a" ? aVal : bVal;
+      const lVal = o.winner === "a" ? bVal : aVal;
+      return "🏆 " + winnerName + " " + wVal + " " + unit + " — " + loserName + " " + lVal;
     }
-    if (prop.prop_type === "game_total_pim") {
-      if (o.result === "push") return "Push · " + o.total_pim + " PIM";
-      return "🏆 " + String(o.result).toUpperCase() + " · " + o.total_pim + " PIM total";
+    if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
+      const isGoals = prop.prop_type === "game_total_goals";
+      const unit = isGoals ? "GOALS" : "PIM";
+      const total = isGoals ? o.total_goals : o.total_pim;
+      if (o.result === "push") return "Push · " + total + " " + unit;
+      return "🏆 " + String(o.result).toUpperCase() + " · " + total + " " + unit + " total";
+    }
+    if (prop.prop_type === "game_winner") {
+      if (o.winner_team === "tie") return "Push · " + o.home_team + " " + o.home_score + " - " + o.away_team + " " + o.away_score;
+      return "🏆 " + o.winner_team + " wins · " + o.away_team + " " + o.away_score + " - " + o.home_team + " " + o.home_score;
     }
     return null;
   }
@@ -101,8 +114,14 @@ export default function PropsLog({
                 const propLabel =
                   prop.prop_type === "h2h_player"
                     ? "⚔️ " + prop.metadata?.player_a_name + " vs " + prop.metadata?.player_b_name
+                    : prop.prop_type === "h2h_goalie"
+                    ? "🥅 " + prop.metadata?.player_a_name + " vs " + prop.metadata?.player_b_name
                     : prop.prop_type === "game_total_pim"
                     ? "⏱️ PIMs O/U " + prop.metadata?.line
+                    : prop.prop_type === "game_total_goals"
+                    ? "🎯 Goals O/U " + prop.metadata?.line
+                    : prop.prop_type === "game_winner"
+                    ? "🏒 Game Winner"
                     : "⚡ Next Goal";
                 const winLine = winnerLine(prop);
 

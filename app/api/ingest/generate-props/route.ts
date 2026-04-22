@@ -203,11 +203,14 @@ function chooseProps(
     h2hOptions.push({ kind: "h2h_pim", a: awayEnforcer, b: homeEnforcer });
   }
 
-  const homeGoalie = pickStarterGoalie(homeTeam);
-  const awayGoalie = pickStarterGoalie(awayTeam);
-  if (homeGoalie && awayGoalie) {
-    h2hOptions.push({ kind: "h2h_saves", a: awayGoalie, b: homeGoalie });
-  }
+  // DISABLED: goalie duel. club-stats returns total-season GP including prior teams,
+  // which mis-identifies starters when goalies trade mid-season (e.g. Jarry PIT→EDM).
+  // Revisit when we can pull probable starters from /gamecenter/{id}/landing.
+  // const homeGoalie = pickStarterGoalie(homeTeam);
+  // const awayGoalie = pickStarterGoalie(awayTeam);
+  // if (homeGoalie && awayGoalie) {
+  //   h2hOptions.push({ kind: "h2h_saves", a: awayGoalie, b: homeGoalie });
+  // }
 
   if (h2hOptions.length > 0) {
     const weighted: PropSpec[] = [];

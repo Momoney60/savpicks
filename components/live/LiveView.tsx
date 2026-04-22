@@ -27,7 +27,7 @@ type Game = {
 type Prop = {
   id: string;
   game_id: string | null;
-  prop_type: "h2h_player" | "game_total_pim" | "next_team_to_score";
+  prop_type: "h2h_player" | "h2h_goalie" | "game_total_pim" | "game_total_goals" | "game_winner" | "next_team_to_score";
   status: "open" | "locked" | "resolved" | "void";
   points_reward: number;
   locks_at: string | null;
@@ -274,7 +274,7 @@ function PickerStrip({ prop, allPropPicks, users, currentUserId, game }: { prop:
   );
 }
 
-const PROP_ORDER: Record<string, number> = { next_team_to_score: 0, h2h_player: 1, game_total_pim: 2 };
+const PROP_ORDER: Record<string, number> = { h2h_player: 0, h2h_goalie: 1, game_winner: 2, game_total_goals: 3, game_total_pim: 4, next_team_to_score: 5 };
 
 function StatusStrip({ game }: { game: Game }) {
   const isLive = game.status === "live";
@@ -335,8 +335,8 @@ function PropRow({ prop, existingPick }: { prop: Prop; existingPick?: PropPick }
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const locked = prop.status !== "open";
   const options = getPropOptions(prop);
-  const label = { h2h_player: "Grudge Match", game_total_pim: "Penalty Minutes", next_team_to_score: "Next Goal" }[prop.prop_type];
-  const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, next_team_to_score: "Who scores next?" }[prop.prop_type];
+  const label = { h2h_player: "Grudge Match", h2h_goalie: "Goalie Duel", game_total_pim: "Penalty Minutes", game_total_goals: "Total Goals", game_winner: "Game Winner", next_team_to_score: "Next Goal" }[prop.prop_type];
+  const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, h2h_goalie: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, game_total_goals: `Line · ${prop.metadata?.line ?? "—"}`, game_winner: `${prop.metadata?.away_team ?? "AWAY"} @ ${prop.metadata?.home_team ?? "HOME"}`, next_team_to_score: "Who scores next?" }[prop.prop_type];
 
   async function pick(val: string) {
     if (locked) return;
@@ -386,15 +386,16 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
   if (!isResolved || !prop.outcome) return null;
   const outcome = prop.outcome as any;
 
-  if (prop.prop_type === "h2h_player") {
+  if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
     const aName = prop.metadata?.player_a_name ?? "A";
     const bName = prop.metadata?.player_b_name ?? "B";
     const aTeam = prop.metadata?.player_a_team ?? "";
     const bTeam = prop.metadata?.player_b_team ?? "";
-    const aPts = outcome.player_a_pts ?? 0;
-    const bPts = outcome.player_b_pts ?? 0;
+    const aPts = outcome.player_a_value ?? outcome.player_a_pts ?? 0;
+    const bPts = outcome.player_b_value ?? outcome.player_b_pts ?? 0;
     const winner = outcome.winner;
     const isTie = winner === "tie";
+    const statLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : "pts";
 
     return (
       <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
@@ -414,7 +415,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             </div>
             <div className="mt-0.5 flex items-baseline gap-1">
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "a" ? "text-brand" : "text-ink-400")}>{aPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">pts</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
               {winner === "a" && <span className="ml-1 text-[12px]">🏆</span>}
             </div>
           </div>
@@ -427,7 +428,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             <div className="mt-0.5 flex items-baseline justify-end gap-1">
               {winner === "b" && <span className="mr-1 text-[12px]">🏆</span>}
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "b" ? "text-brand" : "text-ink-400")}>{bPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">pts</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
             </div>
           </div>
         </div>
@@ -435,9 +436,13 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
     );
   }
 
-  if (prop.prop_type === "game_total_pim") {
+  if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
     const line = parseFloat(prop.metadata?.line ?? "0");
-    const totalPim = outcome.total_pim ?? game.total_pim ?? 0;
+    const isGoalsProp = prop.prop_type === "game_total_goals";
+    const totalPim = isGoalsProp
+      ? (outcome.total_goals ?? ((game.home_score ?? 0) + (game.away_score ?? 0)))
+      : (outcome.total_pim ?? game.total_pim ?? 0);
+    const totalLabel = isGoalsProp ? "GOALS" : "PIM";
     const result = outcome.result;
     const isPush = result === "push";
     const wonLabel = result === "over" ? "OVER " + line : result === "under" ? "UNDER " + line : "PUSH";
@@ -456,12 +461,44 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">Final Total</div>
             <div className="mt-0.5 flex items-baseline gap-1">
               <span className="font-display text-[32px] font-black tabular-nums leading-none text-brand">{totalPim}</span>
-              <span className="font-mono text-[10px] uppercase text-ink-400">PIM</span>
+              <span className="font-mono text-[10px] uppercase text-ink-400">{totalLabel}</span>
             </div>
           </div>
           <div className="text-right">
             <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">Line</div>
             <div className="mt-0.5 font-display text-[16px] font-bold tabular-nums text-ink-300">{line}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (prop.prop_type === "game_winner") {
+    const homeTeam = prop.metadata?.home_team ?? "HOME";
+    const awayTeam = prop.metadata?.away_team ?? "AWAY";
+    const homeScore = outcome.home_score ?? 0;
+    const awayScore = outcome.away_score ?? 0;
+    const winnerTeam = outcome.winner_team;
+    const isTie = winnerTeam === "tie";
+    return (
+      <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Final</span>
+          {isTie ? (
+            <span className="rounded-md bg-ink-700 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-ink-300">Tie</span>
+          ) : (
+            <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">{winnerTeam} Wins</span>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className={cn("flex-1 rounded-md px-2 py-1", winnerTeam === awayTeam ? "" : "bg-rink-red/[0.08] ring-1 ring-rink-red/20")}>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{awayTeam}</div>
+            <div className={cn("font-display text-[22px] font-black tabular-nums", winnerTeam === awayTeam ? "text-brand" : "text-ink-400")}>{awayScore}</div>
+          </div>
+          <span className="font-mono text-[10px] text-ink-600">@</span>
+          <div className={cn("flex-1 rounded-md px-2 py-1 text-right", winnerTeam === homeTeam ? "" : "bg-rink-red/[0.08] ring-1 ring-rink-red/20")}>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{homeTeam}</div>
+            <div className={cn("font-display text-[22px] font-black tabular-nums", winnerTeam === homeTeam ? "text-brand" : "text-ink-400")}>{homeScore}</div>
           </div>
         </div>
       </div>
@@ -473,14 +510,21 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
 function getPropOptions(prop: Prop): { value: string; label: string; subtitle: string }[] {
   switch (prop.prop_type) {
     case "h2h_player":
+    case "h2h_goalie":
       return [
         { value: "a", label: prop.metadata?.player_a_name ?? "Player A", subtitle: prop.metadata?.player_a_team ?? "A" },
         { value: "b", label: prop.metadata?.player_b_name ?? "Player B", subtitle: prop.metadata?.player_b_team ?? "B" },
       ];
     case "game_total_pim":
+    case "game_total_goals":
       return [
         { value: "over", label: `Over ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
         { value: "under", label: `Under ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
+      ];
+    case "game_winner":
+      return [
+        { value: prop.metadata?.away_team ?? "AWAY", label: prop.metadata?.away_team ?? "Away", subtitle: "AWAY" },
+        { value: prop.metadata?.home_team ?? "HOME", label: prop.metadata?.home_team ?? "Home", subtitle: "HOME" },
       ];
     case "next_team_to_score":
       return [
