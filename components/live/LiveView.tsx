@@ -580,6 +580,9 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
       setErrorMsg(data?.error ?? "Failed");
       haptic("heavy");
       setTimeout(() => setErrorMsg(null), 3500);
+    } else {
+      // server-confirmed: second subtle haptic as a "locked in" grace note
+      haptic("light");
     }
   }
 
@@ -599,19 +602,43 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
         {options.map((opt) => {
           const picked = selection === opt.value;
           return (
-            <button key={opt.value} onClick={() => pick(opt.value)} disabled={locked} className={cn("relative flex flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition", picked ? "border-brand bg-brand/10" : "border-ink-700 bg-ink-900/60", !locked && !picked && "active:scale-[0.98] active:bg-ink-800", locked && "cursor-not-allowed opacity-80")}>
-              {opt.image && opt.imageType === "headshot" && (
-                <img src={opt.image} alt="" className="h-11 w-11 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+            <div key={opt.value} className="relative">
+              {!locked && (
+                <div className={cn(
+                  "pointer-events-none absolute inset-0 rounded-xl translate-y-[3px]",
+                  picked ? "bg-brand/40" : "bg-black/80"
+                )} />
               )}
-              {opt.image && opt.imageType === "logo" && (
-                <img src={opt.image} alt="" className="h-11 w-11 flex-none object-contain" />
-              )}
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
-                <span className={cn("font-display text-[13px] font-bold leading-tight", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
-              </div>
-              {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>}
-            </button>
+              <motion.button
+                onClick={() => pick(opt.value)}
+                disabled={locked}
+                whileTap={!locked ? { y: 3 } : undefined}
+                animate={{ scale: picked ? 1.02 : 1 }}
+                transition={{ type: "spring", stiffness: 700, damping: 28 }}
+                className={cn(
+                  "relative flex w-full flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left",
+                  "bg-gradient-to-b",
+                  picked
+                    ? "border-brand from-brand/20 to-brand/[0.04] shadow-[0_0_0_2px_rgb(125_211_252/0.25),0_12px_24px_-6px_rgb(125_211_252/0.35)]"
+                    : "border-ink-700 from-ink-800 to-ink-900 shadow-tier-2",
+                  locked && "cursor-not-allowed opacity-80",
+                  "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:rounded-t-xl",
+                  picked ? "before:bg-brand/60" : "before:bg-white/10"
+                )}
+              >
+                {opt.image && opt.imageType === "headshot" && (
+                  <img src={opt.image} alt="" className="h-11 w-11 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+                )}
+                {opt.image && opt.imageType === "logo" && (
+                  <img src={opt.image} alt="" className="h-11 w-11 flex-none object-contain" />
+                )}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">{opt.subtitle}</span>
+                  <span className={cn("font-display text-[13px] font-bold leading-tight", picked ? "text-brand" : "text-ink-100")}>{opt.label}</span>
+                </div>
+                {picked && <span className="absolute right-2 top-2 font-mono text-[9px] font-black uppercase text-brand">✓</span>}
+              </motion.button>
+            </div>
           );
         })}
       </div>}
