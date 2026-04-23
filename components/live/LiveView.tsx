@@ -113,9 +113,8 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
               <div className="divide-y divide-ink-700/40">
                 {props.sort((a, b) => PROP_ORDER[a.prop_type] - PROP_ORDER[b.prop_type]).map((p) => (
                   <div key={p.id}>
-                    <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} game={game} />
+                    {isScheduled && <PropRow prop={p} existingPick={myPicks.find((m) => m.prop_id === p.id)} game={game} />}
                     {!isScheduled && <RinkCard prop={p} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} game={game} onChipClick={(uid) => setDrawerUserId(uid)} />}
-                    <PropResultBanner prop={p} game={game} />
                   </div>
                 ))}
               </div>
@@ -294,66 +293,147 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     if (bySel[sel] === undefined) bySel[sel] = [];
     bySel[sel].push(p.user_id!);
   });
-
   const sideAUsers = bySel[opts[0].value] ?? [];
   const sideBUsers = bySel[opts[1].value] ?? [];
 
-  const renderHeader = (isA: boolean) => {
+  const isLive = game.status === "live";
+  const outcome: any = prop.outcome ?? {};
+  const isResolved = !!prop.outcome;
+  const badge = getPropBadge(prop);
+
+  let winnerSide: "a" | "b" | null = null;
+  if (isResolved) {
+    if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
+      if (outcome.winner === "a") winnerSide = "a";
+      else if (outcome.winner === "b") winnerSide = "b";
+    } else if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
+      if (outcome.result === "over") winnerSide = "a";
+      else if (outcome.result === "under") winnerSide = "b";
+    } else if (prop.prop_type === "game_winner") {
+      if (outcome.winner_team === opts[0].value) winnerSide = "a";
+      else if (outcome.winner_team === opts[1].value) winnerSide = "b";
+    }
+  }
+
+  const matchByLastName = (full: string) => {
+    const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
+    const last = parts[parts.length - 1];
+    if (!last) return undefined;
+    return game.player_stats?.find((pp) => {
+      const pParts = (pp.name ?? "").trim().toLowerCase().split(/\s+/);
+      return pParts[pParts.length - 1] === last;
+    });
+  };
+  const h2hStat = prop.prop_type === "h2h_goalie" ? "saves" : (prop.metadata?.stat ?? "points");
+  const readStat = (p: any): number => {
+    if (!p) return 0;
+    if (h2hStat === "pim") return p.pim ?? 0;
+    if (h2hStat === "saves") return (p as any).saves ?? 0;
+    if (h2hStat === "shots") return (p as any).shots ?? 0;
+    return p.points ?? 0;
+  };
+  const statUnit = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
+
+  let totalContext: string | null = null;
+  if (prop.prop_type === "game_total_pim") {
+    const total = isResolved ? (outcome.total_pim ?? game.total_pim ?? 0) : (game.total_pim ?? 0);
+    if (isLive || isResolved) totalContext = `${total} PIM`;
+  } else if (prop.prop_type === "game_total_goals") {
+    const total = isResolved ? (outcome.total_goals ?? ((game.home_score ?? 0) + (game.away_score ?? 0))) : ((game.home_score ?? 0) + (game.away_score ?? 0));
+    if (isLive || isResolved) totalContext = `${total} G`;
+  }
+
+  const renderSide = (isA: boolean) => {
     const opt = isA ? opts[0] : opts[1];
+    const userIds = isA ? sideAUsers : sideBUsers;
+    const isWinner = isResolved && winnerSide === (isA ? "a" : "b");
+    const isLoser = isResolved && winnerSide !== null && winnerSide !== (isA ? "a" : "b");
+
+    const panelClass = cn(
+      "rounded-xl p-3 ring-1 transition-all",
+      isWinner ? "bg-brand/10 ring-brand/50" :
+      isLoser ? "bg-rink-red/5 ring-rink-red/20" :
+      "bg-ink-900/60 ring-ink-700/40"
+    );
+
+    let head: any;
+    let rightStat: any = null;
+
     if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
       const name = isA ? prop.metadata?.player_a_name : prop.metadata?.player_b_name;
       const team = isA ? prop.metadata?.player_a_team : prop.metadata?.player_b_team;
       const headshot = isA ? prop.metadata?.player_a_headshot : prop.metadata?.player_b_headshot;
-      return (
+      const playerStat = matchByLastName(name ?? "");
+      const statVal = isResolved
+        ? (isA ? (outcome.player_a_value ?? outcome.player_a_pts ?? 0) : (outcome.player_b_value ?? outcome.player_b_pts ?? 0))
+        : readStat(playerStat);
+      head = (
         <div className="flex items-center gap-2">
           {headshot ? (
-            <img src={headshot} alt={name} className="h-9 w-9 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+            <img src={headshot} alt={name} className={cn("h-9 w-9 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover", isLoser && "opacity-60")} />
           ) : (
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink-700 font-mono text-[9px] font-black text-ink-300">
               {lastName(name ?? "").slice(0, 2).toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
-            <div className="truncate font-display text-[12px] font-bold leading-tight text-ink-100">{lastName(name ?? "")}</div>
-            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{team}</div>
+            <div className={cn("font-display text-[12px] font-bold leading-tight truncate", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
+              {lastName(name ?? "")}{isWinner ? " 🏆" : ""}
+            </div>
+            <div className={cn("font-mono text-[9px] uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>{team}</div>
           </div>
         </div>
       );
-    }
-    if (prop.prop_type === "game_winner") {
+      if (isLive || isResolved) {
+        rightStat = (
+          <div className="flex items-baseline gap-1">
+            <span className={cn("font-display text-[22px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{statVal}</span>
+            <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{statUnit}</span>
+          </div>
+        );
+      }
+    } else if (prop.prop_type === "game_winner") {
       const teamObj = isA ? game.away_team : game.home_team;
-      return (
+      const score = isA ? (game.away_score ?? 0) : (game.home_score ?? 0);
+      head = (
         <div className="flex items-center gap-2">
           {teamObj?.logo_url ? (
-            <img src={teamObj.logo_url} alt={teamObj.short_name} className="h-9 w-9 flex-none object-contain" />
+            <img src={teamObj.logo_url} alt={teamObj.short_name} className={cn("h-9 w-9 flex-none object-contain", isLoser && "opacity-60")} />
           ) : (
             <div className="h-9 w-9 flex-none rounded-full bg-ink-700" />
           )}
           <div className="min-w-0">
-            <div className="truncate font-display text-[12px] font-bold leading-tight text-ink-100">{teamObj?.short_name ?? opt.value}</div>
-            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{isA ? "AWAY" : "HOME"}</div>
+            <div className={cn("font-display text-[12px] font-bold leading-tight truncate", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
+              {teamObj?.short_name ?? opt.value}{isWinner ? " 🏆" : ""}
+            </div>
+            <div className={cn("font-mono text-[9px] uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>{isA ? "AWAY" : "HOME"}</div>
+          </div>
+        </div>
+      );
+      if (isLive || isResolved) {
+        rightStat = (
+          <span className={cn("font-display text-[22px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{score}</span>
+        );
+      }
+    } else {
+      const arrow = opt.value === "over" ? "▲" : "▼";
+      const dirLabel = opt.value === "over" ? "OVER" : "UNDER";
+      head = (
+        <div className="flex items-center gap-2">
+          <span className={cn("font-display text-[18px] font-black", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-300")}>{arrow}</span>
+          <div>
+            <div className={cn("font-display text-[12px] font-bold leading-tight", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
+              {dirLabel}{isWinner ? " 🏆" : ""}
+            </div>
+            <div className={cn("font-mono text-[9px] uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>{prop.metadata?.line ?? "-"}</div>
           </div>
         </div>
       );
     }
-    const arrow = opt.value === "over" ? "\u25b2" : "\u25bc";
-    const dirLabel = opt.value === "over" ? "OVER" : "UNDER";
-    return (
-      <div className="flex items-center gap-2">
-        <span className="font-display text-[18px] font-black text-ink-300">{arrow}</span>
-        <div>
-          <div className="font-display text-[12px] font-bold leading-tight text-ink-100">{dirLabel}</div>
-          <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{prop.metadata?.line ?? "-"}</div>
-        </div>
-      </div>
-    );
-  };
 
-  const renderChips = (userIds: string[]) => {
-    if (userIds.length === 0) {
-      return <div className="mt-2 italic text-[10px] text-ink-600">No picks yet</div>;
-    }
-    return (
+    const chips = userIds.length === 0 ? (
+      <div className="mt-2 italic text-[10px] text-ink-600">No picks</div>
+    ) : (
       <div className="mt-2 flex flex-wrap gap-1.5">
         {userIds.map((uid) => {
           const name = userMap[uid] ?? "?";
@@ -366,7 +446,8 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
               className={cn(
                 "inline-flex h-6 w-6 items-center justify-center rounded-full font-mono text-[9px] font-black text-white transition-transform active:scale-90",
                 chipColor(uid),
-                isMe && "ring-2 ring-brand ring-offset-2 ring-offset-ink-900"
+                isMe && "ring-2 ring-brand ring-offset-2 ring-offset-ink-900",
+                isLoser && "opacity-70"
               )}
             >
               {getInitials(name)}
@@ -375,28 +456,41 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
         })}
       </div>
     );
+
+    return (
+      <div className={panelClass}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">{head}</div>
+          {rightStat && <div className="flex-none">{rightStat}</div>}
+        </div>
+        <div className={cn("mt-2 font-mono text-[9px] font-bold uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>
+          {userIds.length} {userIds.length === 1 ? "pick" : "picks"}
+        </div>
+        {chips}
+      </div>
+    );
   };
 
   return (
     <div className="border-t border-ink-700/30 bg-ink-900/20 px-4 py-3">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-        <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
-          {renderHeader(true)}
-          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-            {sideAUsers.length} {sideAUsers.length === 1 ? "pick" : "picks"}
-          </div>
-          {renderChips(sideAUsers)}
+      <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={cn("font-display text-[11px] font-black uppercase tracking-wide", badge.color)}>{badge.text}</span>
+          {totalContext && (
+            <span className={cn(
+              "rounded-md px-2 py-0.5 font-mono text-[10px] font-black uppercase tracking-wider tabular-nums",
+              isResolved ? "bg-brand/15 text-brand" : "bg-ink-800 text-ink-200"
+            )}>{totalContext}</span>
+          )}
         </div>
-        <div className="flex h-full items-center pt-3">
+        <span className="flex-none rounded-md bg-ink-800 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-400">+{prop.points_reward}</span>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+        {renderSide(true)}
+        <div className="flex items-center">
           <span className="font-mono text-[10px] font-black text-ink-600">VS</span>
         </div>
-        <div className="rounded-xl bg-ink-900/60 p-3 ring-1 ring-ink-700/40">
-          {renderHeader(false)}
-          <div className="mt-2 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-            {sideBUsers.length} {sideBUsers.length === 1 ? "pick" : "picks"}
-          </div>
-          {renderChips(sideBUsers)}
-        </div>
+        {renderSide(false)}
       </div>
     </div>
   );
