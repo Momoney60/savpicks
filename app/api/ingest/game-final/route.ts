@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   const awayScore = box.awayTeam?.score ?? 0;
 
   const playerStats: PlayerStat[] = [];
-  const playerLookup: Record<string, { points: number; team: string; pim: number }> = {};
+  const playerLookup: Record<string, { points: number; team: string; pim: number; shots: number }> = {};
   const goalieLookup: Record<string, GoalieStat> = {};
 
   const collect = (side: any, abbrev: string) => {
@@ -78,9 +78,10 @@ export async function POST(request: Request) {
         const goals = p.goals ?? 0;
         const assists = p.assists ?? 0;
         const pim = p.pim ?? p.penaltyMinutes ?? 0;
+        const shots = p.sog ?? p.shots ?? 0;
         const points = goals + assists;
-        playerStats.push({ name, team: abbrev, goals, assists, points, pim });
-        playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim };
+        playerStats.push({ name, team: abbrev, goals, assists, points, pim, sog: shots });
+        playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim, shots };
       }
     }
     for (const p of side.goalies ?? []) {
@@ -153,7 +154,7 @@ export async function POST(request: Request) {
       const readStat = (entry: any) => {
         if (!entry) return 0;
         if (stat === "pim") return entry[1]?.pim ?? 0;
-        // Default: points (covers points/shots fallthrough — shots not in boxscore top-level, use points)
+        if (stat === "shots") return entry[1]?.shots ?? 0;
         return entry[1]?.points ?? 0;
       };
       const aVal = readStat(aEntry);

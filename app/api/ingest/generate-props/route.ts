@@ -189,7 +189,7 @@ function chooseProps(
     awayShooter &&
     (homeShooter.playerId !== homeTop?.playerId || awayShooter.playerId !== awayTop?.playerId)
   ) {
-    h2hOptions.push({ kind: "h2h_shots", a: awayShooter, b: homeShooter });
+    // h2hOptions.push({ kind: "h2h_shots", a: awayShooter, b: homeShooter }); // DISABLED - poller does not capture sog yet
   }
 
   const homeEnforcer = pickTopPimLeader(homeTeam);

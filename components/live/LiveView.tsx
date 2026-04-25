@@ -103,7 +103,7 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
 
       {!collapsed && (
         <>
-          {showStats && <LiveStatsPanel game={game} props={props} />}
+          {/* LiveStatsPanel removed - rink cards now carry stats inline */}
           {props.length > 0 && (
             <>
               <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
@@ -129,118 +129,6 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
       )}
     </AnimatePresence>
     </>
-  );
-}
-
-function LiveStatsPanel({ game, props }: { game: Game; props: Prop[] }) {
-  // Find the h2h matchup prop (player or goalie). Stat = metadata.stat ("points"|"pim"|"shots"|"saves")
-  const h2hProp = props.find((p) => p.prop_type === "h2h_player" || p.prop_type === "h2h_goalie");
-  // Find the game-total prop (pim or goals)
-  const totalProp = props.find((p) => p.prop_type === "game_total_pim" || p.prop_type === "game_total_goals");
-
-  const matchByLastName = (full: string) => {
-    const parts = (full ?? "").trim().toLowerCase().split(/\s+/);
-    const lastName = parts[parts.length - 1];
-    if (!lastName) return undefined;
-    return game.player_stats?.find((p) => {
-      const pParts = (p.name ?? "").trim().toLowerCase().split(/\s+/);
-      return pParts[pParts.length - 1] === lastName;
-    });
-  };
-  const playerA = matchByLastName(h2hProp?.metadata?.player_a_name ?? "");
-  const playerB = matchByLastName(h2hProp?.metadata?.player_b_name ?? "");
-
-  // Stat selector: pulls the right field off player_stats based on metadata.stat
-  const h2hStat: string = h2hProp?.prop_type === "h2h_goalie" ? "saves" : (h2hProp?.metadata?.stat ?? "points");
-  const readStat = (p: any): number => {
-    if (!p) return 0;
-    if (h2hStat === "pim") return p.pim ?? 0;
-    if (h2hStat === "saves") return (p as any).saves ?? 0;
-    if (h2hStat === "shots") return (p as any).shots ?? 0;
-    return p.points ?? 0;
-  };
-  const aVal = readStat(playerA);
-  const bVal = readStat(playerB);
-  const statLabel = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
-  const h2hSectionLabel =
-    h2hStat === "pim" ? "PIM Duel" :
-    h2hStat === "saves" ? "Saves Duel" :
-    h2hStat === "shots" ? "Shots Duel" :
-    "Points Duel";
-
-  // Total-prop section: read line and current total based on prop type
-  const isGoalsTotal = totalProp?.prop_type === "game_total_goals";
-  const totalLine = totalProp ? parseFloat(totalProp.metadata?.line ?? "0") : 0;
-  const currentTotal = isGoalsTotal
-    ? ((game.home_score ?? 0) + (game.away_score ?? 0))
-    : (game.total_pim ?? 0);
-  const totalUnit = isGoalsTotal ? "goals" : "min";
-  const totalSectionLabel = isGoalsTotal ? "Total Goals" : "Total PIM";
-  const totalHighlight = totalProp && currentTotal > totalLine;
-
-  if (!h2hProp && !totalProp) return null;
-
-  return (
-    <div className="border-t border-ink-700/50 bg-ink-900/40 px-5 py-3">
-      <div className="flex items-stretch gap-4">
-        {totalProp && (
-          <div className="flex-1 border-r border-ink-700/40 pr-4">
-            <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-              Line {totalLine}
-            </div>
-            <div className="font-display text-[11px] font-bold text-ink-200">{totalSectionLabel}</div>
-            <div className="mt-0.5 flex items-baseline gap-1">
-              <span className={cn("font-display text-[24px] font-black tabular-nums leading-none", totalHighlight ? "text-brand" : "text-ink-100")}>
-                {currentTotal}
-              </span>
-              <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{totalUnit}</span>
-            </div>
-          </div>
-        )}
-
-        {h2hProp && (
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-[9px] font-bold uppercase tracking-wider text-ink-500">
-              {h2hSectionLabel}
-            </div>
-            <div className="mt-0.5 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
-                    {playerA?.team ?? h2hProp.metadata?.player_a_team ?? ""}
-                  </span>
-                  <span className={cn("truncate font-display text-[12px] font-bold", aVal > bVal ? "text-brand" : "text-ink-200")}>
-                    {lastName(h2hProp.metadata?.player_a_name ?? "")}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className={cn("font-display text-[15px] font-black tabular-nums", aVal > bVal ? "text-brand" : "text-ink-300")}>
-                    {aVal}
-                  </span>
-                  <span className="font-mono text-[8px] uppercase tracking-wider text-ink-500">{statLabel}</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-mono text-[9px] font-bold tracking-wider text-ink-500">
-                    {playerB?.team ?? h2hProp.metadata?.player_b_team ?? ""}
-                  </span>
-                  <span className={cn("truncate font-display text-[12px] font-bold", bVal > aVal ? "text-brand" : "text-ink-200")}>
-                    {lastName(h2hProp.metadata?.player_b_name ?? "")}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className={cn("font-display text-[15px] font-black tabular-nums", bVal > aVal ? "text-brand" : "text-ink-300")}>
-                    {bVal}
-                  </span>
-                  <span className="font-mono text-[8px] uppercase tracking-wider text-ink-500">{statLabel}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -370,14 +258,14 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       head = (
         <div className="flex items-center gap-2">
           {headshot ? (
-            <img src={headshot} alt={name} className={cn("h-9 w-9 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover", isLoser && "opacity-60")} />
+            <img src={headshot} alt={name} className={cn("h-12 w-12 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover", isLoser && "opacity-60")} />
           ) : (
-            <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-ink-700 font-mono text-[9px] font-black text-ink-300">
+            <div className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-ink-700 font-mono text-[9px] font-black text-ink-300">
               {lastName(name ?? "").slice(0, 2).toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
-            <div className={cn("font-display text-[12px] font-bold leading-tight truncate", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
+            <div className={cn("font-display text-[13px] font-bold leading-tight", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
               {lastName(name ?? "")}{isWinner ? " 🏆" : ""}
             </div>
             <div className={cn("font-mono text-[9px] uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>{team}</div>
@@ -398,12 +286,12 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       head = (
         <div className="flex items-center gap-2">
           {teamObj?.logo_url ? (
-            <img src={teamObj.logo_url} alt={teamObj.short_name} className={cn("h-9 w-9 flex-none object-contain", isLoser && "opacity-60")} />
+            <img src={teamObj.logo_url} alt={teamObj.short_name} className={cn("h-12 w-12 flex-none object-contain", isLoser && "opacity-60")} />
           ) : (
-            <div className="h-9 w-9 flex-none rounded-full bg-ink-700" />
+            <div className="h-12 w-12 flex-none rounded-full bg-ink-700" />
           )}
           <div className="min-w-0">
-            <div className={cn("font-display text-[12px] font-bold leading-tight truncate", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
+            <div className={cn("font-display text-[13px] font-bold leading-tight", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
               {teamObj?.short_name ?? opt.value}{isWinner ? " 🏆" : ""}
             </div>
             <div className={cn("font-mono text-[9px] uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>{isA ? "AWAY" : "HOME"}</div>

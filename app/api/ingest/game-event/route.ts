@@ -12,6 +12,7 @@ interface PlayerStat {
   assists: number;
   points: number;
   pim: number;
+  sog: number;
 }
 
 export async function POST(request: Request) {
@@ -58,7 +59,8 @@ export async function POST(request: Request) {
             const goals = p.goals ?? 0;
             const assists = p.assists ?? 0;
             const pim = p.pim ?? p.penaltyMinutes ?? 0;
-            playerStats.push({ name, team: abbrev, goals, assists, points: goals + assists, pim });
+            const sog = p.sog ?? p.shots ?? 0;
+            playerStats.push({ name, team: abbrev, goals, assists, points: goals + assists, pim, sog });
           }
         }
       };
