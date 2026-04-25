@@ -274,10 +274,10 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       );
       if (isLive || isResolved) {
         rightStat = (
-          <div className="flex items-baseline gap-1">
-            <span className={cn("font-display text-[22px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{statVal}</span>
-            <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{statUnit}</span>
-          </div>
+          <>
+            <span className={cn("font-display text-[28px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{statVal}</span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">{statUnit}</span>
+          </>
         );
       }
     } else if (prop.prop_type === "game_winner") {
@@ -300,7 +300,7 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
       );
       if (isLive || isResolved) {
         rightStat = (
-          <span className={cn("font-display text-[22px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{score}</span>
+          <span className={cn("font-display text-[28px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{score}</span>
         );
       }
     } else {
@@ -347,10 +347,12 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
 
     return (
       <div className={panelClass}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">{head}</div>
-          {rightStat && <div className="flex-none">{rightStat}</div>}
-        </div>
+        <div>{head}</div>
+        {rightStat && (
+          <div className={cn("mt-2.5 flex items-baseline gap-1.5 border-t pt-2", isLoser ? "border-rink-red/15" : isWinner ? "border-brand/30" : "border-ink-700/40")}>
+            {rightStat}
+          </div>
+        )}
         <div className={cn("mt-2 font-mono text-[9px] font-bold uppercase tracking-wider", isLoser ? "text-ink-600" : "text-ink-500")}>
           {userIds.length} {userIds.length === 1 ? "pick" : "picks"}
         </div>
