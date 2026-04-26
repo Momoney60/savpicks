@@ -6,6 +6,7 @@ import {
   mostRiddenTeamForRound,
   bracketBustsForRound,
   currentPickRound,
+  teamWithMostRidersInState,
   type StreakPick,
   type StreakSeries,
 } from "@/lib/bracketStreaks";
@@ -48,6 +49,11 @@ export default function LeaguePulseCard({
 
   const hottestTeam = hottest ? teamMap[hottest.team_id] : null;
 
+  const trending = useMemo(() => teamWithMostRidersInState("leading", allBracketPicks, series), [allBracketPicks, series]);
+  const inDanger = useMemo(() => teamWithMostRidersInState("trailing", allBracketPicks, series), [allBracketPicks, series]);
+  const trendingTeam = trending ? teamMap[trending.team_id] : null;
+  const dangerTeam = inDanger ? teamMap[inDanger.team_id] : null;
+
   return (
     <div className="rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-card">
       <div className="mb-3 font-mono text-[9px] font-black uppercase tracking-[0.25em] text-brand">League Pulse</div>
@@ -57,6 +63,18 @@ export default function LeaguePulseCard({
           <PulseRow
             icon={hottestTeam.logo_url ? <img src={hottestTeam.logo_url} alt="" className="h-7 w-7 object-contain" /> : <span className="text-[16px]">🏒</span>}
             label={`Hottest team: ${hottestTeam.short_name} (${hottest!.count} ${hottest!.count === 1 ? "rider" : "riders"})`}
+          />
+        )}
+        {trendingTeam && trending && (
+          <PulseRow
+            icon={trendingTeam.logo_url ? <img src={trendingTeam.logo_url} alt="" className="h-7 w-7 object-contain" /> : <span className="text-[16px]">▲</span>}
+            label={`Trending: ${trendingTeam.short_name} leads ${trending.team_wins}-${trending.opp_wins} · ${trending.rider_count} cruising`}
+          />
+        )}
+        {dangerTeam && inDanger && (
+          <PulseRow
+            icon={dangerTeam.logo_url ? <img src={dangerTeam.logo_url} alt="" className="h-7 w-7 object-contain opacity-80" /> : <span className="text-[16px]">▼</span>}
+            label={`In danger: ${dangerTeam.short_name} trails ${inDanger.team_wins}-${inDanger.opp_wins} · ${inDanger.rider_count} sweating`}
           />
         )}
         {lastCompletedRound != null && busts > 0 && (

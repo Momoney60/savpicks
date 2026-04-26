@@ -6,7 +6,71 @@ export type StreakSeries = {
   winner_id: string | null;
   status?: "upcoming" | "live" | "completed";
   picks_lock_at?: string | null;
+  wins_a?: number;
+  wins_b?: number;
 };
+
+export type LiveTeamStatus = "leading" | "trailing" | "tied" | "won" | "eliminated" | "scheduled" | null;
+
+export function liveTeamStatus(series: StreakSeries, teamId: string): LiveTeamStatus {
+  if (!series.team_a_id || !series.team_b_id) return null;
+  if (series.team_a_id !== teamId && series.team_b_id !== teamId) return null;
+  if (series.winner_id) {
+    return series.winner_id === teamId ? "won" : "eliminated";
+  }
+  if (series.status !== "live") return "scheduled";
+  const winsA = series.wins_a ?? 0;
+  const winsB = series.wins_b ?? 0;
+  if (winsA === winsB) return "tied";
+  const teamWins = series.team_a_id === teamId ? winsA : winsB;
+  const oppWins = series.team_a_id === teamId ? winsB : winsA;
+  return teamWins > oppWins ? "leading" : "trailing";
+}
+
+export function teamWithMostRidersInState(
+  state: "leading" | "trailing",
+  picks: StreakPick[],
+  series: StreakSeries[],
+): { team_id: string; series_id: string; round: number; team_wins: number; opp_wins: number; rider_count: number } | null {
+  let best: { team_id: string; series_id: string; round: number; team_wins: number; opp_wins: number; rider_count: number } | null = null;
+  for (const s of series) {
+    if (s.status !== "live" || s.winner_id) continue;
+    if (!s.team_a_id || !s.team_b_id) continue;
+    for (const teamId of [s.team_a_id, s.team_b_id]) {
+      if (liveTeamStatus(s, teamId) !== state) continue;
+      const riderCount = ridersForCell(teamId, s.round, picks, series).length;
+      if (riderCount === 0) continue;
+      const isA = s.team_a_id === teamId;
+      const teamWins = (isA ? s.wins_a : s.wins_b) ?? 0;
+      const oppWins = (isA ? s.wins_b : s.wins_a) ?? 0;
+      if (!best || riderCount > best.rider_count) {
+        best = { team_id: teamId, series_id: s.id, round: s.round, team_wins: teamWins, opp_wins: oppWins, rider_count: riderCount };
+      }
+    }
+  }
+  return best;
+}
+
+export type RideWithLiveStatus = ActiveRide & { live_status: LiveTeamStatus; team_wins: number; opp_wins: number };
+
+export function userActiveRidesWithStatus(
+  userId: string,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): RideWithLiveStatus[] {
+  const rides = userActiveRides(userId, picks, series);
+  return rides.map((r) => {
+    const s = series.find((x) => x.id === r.current_series_id);
+    if (!s) return { ...r, live_status: null, team_wins: 0, opp_wins: 0 };
+    const isA = s.team_a_id === r.team_id;
+    return {
+      ...r,
+      live_status: liveTeamStatus(s, r.team_id),
+      team_wins: (isA ? s.wins_a : s.wins_b) ?? 0,
+      opp_wins: (isA ? s.wins_b : s.wins_a) ?? 0,
+    };
+  });
+}
 
 export type StreakPick = {
   user_id: string;
@@ -87,6 +151,7 @@ export function multiplierFor(streak: number): number {
   if (streak < 1) return 1;
   return Math.pow(2, Math.min(streak, FLAME_CAP) - 1);
 }
+
 const BASE_POINTS = 10;
 
 export function pointsForStreak(streak: number): number {
@@ -98,6 +163,7 @@ export function flames(streak: number): string {
   const n = Math.max(0, Math.min(streak, FLAME_CAP));
   return "🔥".repeat(n);
 }
+
 export type ActiveRide = {
   team_id: string;
   streak: number;
