@@ -17,11 +17,13 @@ export default async function LivePage() {
   const [
     { data: games },
     { data: upcomingSeries },
+    { data: allSeries },
     { data: openProps },
     { data: allProps },
     { data: myPicks },
     { data: allPropPicks },
     { data: users },
+    { data: allBracketPicks },
   ] = await Promise.all([
     supabase
       .from("games")
@@ -38,11 +40,15 @@ export default async function LivePage() {
       .lte("picks_lock_at", in48h)
       .gte("picks_lock_at", now.toISOString())
       .order("picks_lock_at"),
+    supabase
+      .from("series")
+      .select("id, team_a_id, team_b_id, wins_a, wins_b, winner_id, status, round"),
     supabase.from("props").select("*").in("status", ["open", "locked"]).order("locks_at"),
     supabase.from("props").select("*"),
     supabase.from("prop_picks").select("*").eq("user_id", user!.id),
     supabase.from("prop_picks").select("user_id, prop_id, selection"),
     supabase.from("profiles").select("id, gamertag"),
+    supabase.from("bracket_picks").select("user_id, series_id, picked_team_id"),
   ]);
 
   const syntheticGames = (upcomingSeries ?? []).map((s: any) => ({
@@ -85,6 +91,8 @@ export default async function LivePage() {
         allPropPicks={allPropPicks ?? []}
         users={mappedUsers}
         currentUserId={user!.id}
+        seriesRecords={(allSeries ?? []) as any}
+        allBracketPicks={(allBracketPicks ?? []) as any}
       />
     </main>
   );

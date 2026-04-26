@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
+import { ridersForCell, type StreakPick, type StreakSeries } from "@/lib/bracketStreaks";
 
 type Team = { id: string; short_name: string; primary_color: string | null; logo_url: string | null; is_eliminated: boolean; };
 
@@ -37,6 +38,119 @@ type Prop = {
 type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any; is_correct?: boolean | null };
 type PublicUser = { user_id: string; gamertag: string };
 
+type SeriesRecord = {
+  id: string;
+  team_a_id: string;
+  team_b_id: string;
+  wins_a: number;
+  wins_b: number;
+  winner_id: string | null;
+  status: "upcoming" | "live" | "completed";
+  round: number;
+};
+
+function findSeriesForGame(records: SeriesRecord[], homeId: string, awayId: string): SeriesRecord | undefined {
+  return records.find((r) =>
+    (r.team_a_id === homeId && r.team_b_id === awayId) ||
+    (r.team_a_id === awayId && r.team_b_id === homeId)
+  );
+}
+
+function roundLabel(round: number): string {
+  if (round === 1) return "Round 1";
+  if (round === 2) return "Round 2";
+  if (round === 3) return "Conf Final";
+  if (round === 4) return "Cup Final";
+  return `Round ${round}`;
+}
+
+function formatSeriesString(s: SeriesRecord, homeId: string, awayId: string, homeShort: string, awayShort: string): string {
+  const aShort = s.team_a_id === homeId ? homeShort : awayShort;
+  const bShort = s.team_b_id === homeId ? homeShort : awayShort;
+
+  if (s.winner_id) {
+    if (s.winner_id === s.team_a_id) return `${aShort} wins ${s.wins_a}-${s.wins_b}`;
+    if (s.winner_id === s.team_b_id) return `${bShort} wins ${s.wins_b}-${s.wins_a}`;
+  }
+
+  if (s.wins_a > s.wins_b) return `${aShort} leads ${s.wins_a}-${s.wins_b}`;
+  if (s.wins_b > s.wins_a) return `${bShort} leads ${s.wins_b}-${s.wins_a}`;
+  return `Series tied ${s.wins_a}-${s.wins_b}`;
+}
+
+function SeriesStakesStrip({
+  series,
+  game,
+  allBracketPicks,
+  seriesRecords,
+}: {
+  series: SeriesRecord;
+  game: Game;
+  allBracketPicks: StreakPick[];
+  seriesRecords: SeriesRecord[];
+}) {
+  const streakSeries: StreakSeries[] = useMemo(
+    () =>
+      seriesRecords.map((s) => ({
+        id: s.id,
+        round: s.round,
+        team_a_id: s.team_a_id,
+        team_b_id: s.team_b_id,
+        winner_id: s.winner_id,
+      })),
+    [seriesRecords],
+  );
+
+  const ridersA = useMemo(
+    () => ridersForCell(series.team_a_id, series.round, allBracketPicks, streakSeries),
+    [series.team_a_id, series.round, allBracketPicks, streakSeries],
+  );
+  const ridersB = useMemo(
+    () => ridersForCell(series.team_b_id, series.round, allBracketPicks, streakSeries),
+    [series.team_b_id, series.round, allBracketPicks, streakSeries],
+  );
+
+  const aShort = game.home_team_id === series.team_a_id
+    ? (game.home_team?.short_name ?? series.team_a_id)
+    : (game.away_team?.short_name ?? series.team_a_id);
+  const bShort = game.home_team_id === series.team_b_id
+    ? (game.home_team?.short_name ?? series.team_b_id)
+    : (game.away_team?.short_name ?? series.team_b_id);
+
+  if (ridersA.length === 0 && ridersB.length === 0) return null;
+
+  const renderSide = (short: string, riders: { user_id: string; streak: number }[], align: "left" | "right") => {
+    if (riders.length === 0) {
+      return (
+        <span className={cn("text-ink-600", align === "right" && "text-right")}>
+          {short} <span className="text-ink-700">·</span> 0 riders
+        </span>
+      );
+    }
+    const max = riders[0].streak;
+    return (
+      <span className={align === "right" ? "text-right" : ""}>
+        <span className="text-ink-200">{short}</span>
+        <span className="mx-1 text-ink-700">·</span>
+        <span className="text-ink-300">{riders.length} {riders.length === 1 ? "rider" : "riders"}</span>
+        {max > 0 && (
+          <>
+            <span className="mx-1 text-ink-700">·</span>
+            <span className="text-amber-400">{max}🔥</span>
+          </>
+        )}
+      </span>
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-2 items-center gap-2 border-t border-ink-700/30 bg-ink-900/40 px-5 py-1.5 font-mono text-[10px] uppercase tracking-wider">
+      {renderSide(aShort, ridersA, "left")}
+      {renderSide(bShort, ridersB, "right")}
+    </div>
+  );
+}
+
 function propMatchesGame(prop: Prop, game: Game): boolean {
   // Strict match on NHL game_id — the only correct identity.
   // Old fuzzy team-set match incorrectly merged props across all games of a series
@@ -44,8 +158,8 @@ function propMatchesGame(prop: Prop, game: Game): boolean {
   return prop.game_id === game.id;
 }
 
-export default function LiveView({ games, props, myPicks, allPropPicks = [], users = [], currentUserId }: {
-  games: Game[]; props: Prop[]; myPicks: PropPick[]; allPropPicks?: PropPick[]; users?: PublicUser[]; currentUserId?: string;
+export default function LiveView({ games, props, myPicks, allPropPicks = [], users = [], currentUserId, seriesRecords = [], allBracketPicks = [] }: {
+  games: Game[]; props: Prop[]; myPicks: PropPick[]; allPropPicks?: PropPick[]; users?: PublicUser[]; currentUserId?: string; seriesRecords?: SeriesRecord[]; allBracketPicks?: StreakPick[];
 }) {
   const orderedGames = [...games].sort((a, b) => {
     const rank = (g: Game) => (g.status === "live" ? 0 : g.status === "scheduled" ? 1 : 2);
@@ -68,14 +182,14 @@ export default function LiveView({ games, props, myPicks, allPropPicks = [], use
       {orderedGames.map((game) => {
         const gameProps = props.filter((p) => propMatchesGame(p, game) && p.prop_type !== "next_team_to_score");
         return (
-          <GameCell key={game.id} game={game} props={gameProps} myPicks={myPicks} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} />
+          <GameCell key={game.id} game={game} props={gameProps} myPicks={myPicks} allPropPicks={allPropPicks} users={users} currentUserId={currentUserId} seriesRecords={seriesRecords} allBracketPicks={allBracketPicks} />
         );
       })}
     </div>
   );
 }
 
-function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: { game: Game; props: Prop[]; myPicks: PropPick[]; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; }) {
+function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId, seriesRecords, allBracketPicks }: { game: Game; props: Prop[]; myPicks: PropPick[]; allPropPicks: PropPick[]; users: PublicUser[]; currentUserId?: string; seriesRecords: SeriesRecord[]; allBracketPicks: StreakPick[]; }) {
   const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
   const isLive = game.status === "live";
   const isFinal = game.status === "final";
@@ -93,6 +207,23 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId }: 
           <div className="my-3 h-px bg-ink-700/40" />
           <TeamLine team={game.home_team} score={game.home_score} live={isLive} winning={game.home_score > game.away_score && (isLive || isFinal)} final={isFinal} scheduled={isScheduled} />
         </div>
+        {(() => {
+          const sr = findSeriesForGame(seriesRecords, game.home_team_id, game.away_team_id);
+          if (!sr) return null;
+          const homeShort = game.home_team?.short_name ?? game.home_team_id;
+          const awayShort = game.away_team?.short_name ?? game.away_team_id;
+          const showRecord = sr.status !== "upcoming";
+          return (
+            <>
+              {showRecord && (
+                <div className="border-t border-ink-700/30 px-5 py-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-500">
+                  {roundLabel(sr.round)} <span className="mx-1.5 text-ink-700">·</span> <span className="text-ink-300">{formatSeriesString(sr, game.home_team_id, game.away_team_id, homeShort, awayShort)}</span>
+                </div>
+              )}
+              <SeriesStakesStrip series={sr} game={game} allBracketPicks={allBracketPicks} seriesRecords={seriesRecords} />
+            </>
+          );
+        })()}
       </button>
 
       {isFinal && collapsed && (
