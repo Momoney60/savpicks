@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { userActiveRides, flames, currentPickRound, type StreakPick, type StreakSeries } from "@/lib/bracketStreaks";
+import { userActiveRidesWithStatus, flames, currentPickRound, type StreakPick, type StreakSeries, type LiveTeamStatus } from "@/lib/bracketStreaks";
 
 type Team = { id: string; short_name: string; logo_url: string | null };
 
@@ -22,10 +22,16 @@ export default function YourPositionCard({
   const teamMap = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t])), [teams]);
 
   const rides = useMemo(
-    () => userActiveRides(currentUserId, myPicks, series),
+    () => userActiveRidesWithStatus(currentUserId, myPicks, series),
     [currentUserId, myPicks, series],
   );
-  const hottest = rides[0] ?? null;
+
+  // Tonight = rides whose current series is live or upcoming (not completed)
+  const tonight = useMemo(
+    () => rides.filter((r) => r.live_status === "leading" || r.live_status === "trailing" || r.live_status === "tied" || r.live_status === "scheduled"),
+    [rides],
+  );
+
   const pickRound = useMemo(() => currentPickRound(series), [series]);
 
   const pendingThisRound = useMemo(() => {
@@ -46,31 +52,23 @@ export default function YourPositionCard({
     return { count, nextLockAt: nextLock != null ? new Date(nextLock).toISOString() : null };
   }, [pickRound, series, myPicks, currentUserId]);
 
-  const hottestTeam = hottest ? teamMap[hottest.team_id] : null;
-  const hottestFlames = hottest ? flames(hottest.streak) : "";
-  const hottestLabel = hottest && hottest.streak >= 2 ? "Riding" : hottest ? "Picked" : "";
-
   return (
     <div className="rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-card">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="font-mono text-[9px] font-black uppercase tracking-[0.25em] text-brand">Your Position</div>
-          <div className="mt-0.5 font-display text-[28px] font-black tabular-nums leading-none text-ink-100">{bankedPoints}<span className="ml-1 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">pts banked</span></div>
-        </div>
-        {hottest && hottestTeam ? (
-          <div className="flex items-center gap-2">
-            {hottestTeam.logo_url && <img src={hottestTeam.logo_url} alt="" className="h-9 w-9 object-contain" />}
-            <div className="text-right">
-              <div className="font-display text-[14px] font-bold leading-tight text-ink-100">{hottestLabel} {hottestTeam.short_name}</div>
-              <div className="font-mono text-[12px] leading-none text-amber-400">{hottestFlames || "—"}</div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-right">
-            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">No active ride</div>
-          </div>
-        )}
+      <div className="flex items-baseline justify-between">
+        <div className="font-mono text-[9px] font-black uppercase tracking-[0.25em] text-brand">Your Position</div>
+        <div className="font-mono text-[10px] uppercase tracking-wider text-ink-500">{rides.length} active {rides.length === 1 ? "ride" : "rides"}</div>
       </div>
+      <div className="mt-0.5 font-display text-[28px] font-black tabular-nums leading-none text-ink-100">{bankedPoints}<span className="ml-1 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">pts banked</span></div>
+
+      {tonight.length > 0 && (
+        <div className="mt-3 space-y-1">
+          <div className="font-mono text-[9px] font-black uppercase tracking-wider text-ink-400">Tonight</div>
+          {tonight.map((r) => {
+            const t = teamMap[r.team_id];
+            return <RideRow key={r.current_series_id} team={t} streak={r.streak} status={r.live_status} teamWins={r.team_wins} oppWins={r.opp_wins} />;
+          })}
+        </div>
+      )}
 
       {pendingThisRound.count > 0 && (
         <div className="mt-3 flex items-center justify-between border-t border-ink-700/40 pt-2.5">
@@ -82,6 +80,33 @@ export default function YourPositionCard({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function RideRow({ team, streak, status, teamWins, oppWins }: { team: Team | undefined; streak: number; status: LiveTeamStatus; teamWins: number; oppWins: number }) {
+  const stateLabel =
+    status === "leading" ? `leads ${teamWins}-${oppWins}` :
+    status === "trailing" ? `trails ${teamWins}-${oppWins}` :
+    status === "tied" ? `tied ${teamWins}-${oppWins}` :
+    status === "scheduled" ? "tonight" :
+    `${teamWins}-${oppWins}`;
+  const tone =
+    status === "leading" ? "border-brand/30 bg-brand/[0.04]" :
+    status === "trailing" ? "border-rink-red/30 bg-rink-red/[0.04]" :
+    "border-ink-700 bg-ink-900/40";
+  const stateColor =
+    status === "leading" ? "text-brand" :
+    status === "trailing" ? "text-rink-red" :
+    "text-ink-400";
+  return (
+    <div className={cn("flex items-center gap-2 rounded-md border px-3 py-2", tone)}>
+      {team?.logo_url && <img src={team.logo_url} alt="" className="h-5 w-5 flex-none object-contain" />}
+      <div className="min-w-0 flex-1">
+        <span className="font-display text-[12px] font-bold text-ink-100">{team?.short_name ?? "?"}</span>
+        <span className={cn("ml-1.5 font-mono text-[10px] uppercase tracking-wider", stateColor)}>{stateLabel}</span>
+      </div>
+      {streak > 0 && <span className="font-mono text-[11px] leading-none text-amber-400">{flames(streak)}</span>}
     </div>
   );
 }

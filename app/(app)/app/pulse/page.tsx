@@ -59,6 +59,34 @@ export default async function PulsePage() {
   const yesterdayStr = etDate(yesterday);
   const pastProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) === yesterdayStr);
 
+  // Per-user enrichment for the props leaderboard
+  const allPropPicks = (propPicks ?? []) as any[];
+  const yesterdayPropIds = new Set(pastProps.map((p: any) => p.id));
+  const resolvedPropIds = new Set(propsList.filter((p: any) => p.status === "resolved" || p.status === "locked").map((p: any) => p.id));
+  const yesterdayPointsByUser: Record<string, number> = {};
+  const hitsByUser: Record<string, number> = {};
+  const totalsByUser: Record<string, number> = {};
+  for (const pp of allPropPicks) {
+    if (yesterdayPropIds.has(pp.prop_id) && pp.is_correct === true) {
+      yesterdayPointsByUser[pp.user_id] = (yesterdayPointsByUser[pp.user_id] ?? 0) + (pp.awarded_points ?? 0);
+    }
+    if (resolvedPropIds.has(pp.prop_id)) {
+      totalsByUser[pp.user_id] = (totalsByUser[pp.user_id] ?? 0) + 1;
+      if (pp.is_correct === true) {
+        hitsByUser[pp.user_id] = (hitsByUser[pp.user_id] ?? 0) + 1;
+      }
+    }
+  }
+  const enrichedPropsLb = (roundPropsLb ?? []).map((row: any) => {
+    const total = totalsByUser[row.user_id] ?? 0;
+    const hits = hitsByUser[row.user_id] ?? 0;
+    return {
+      ...row,
+      yesterday_points: yesterdayPointsByUser[row.user_id] ?? 0,
+      hit_rate: total > 0 ? Math.round((hits / total) * 100) : null,
+    };
+  });
+
 
   return (
     <main className="mx-auto max-w-md px-4 pt-safe pb-6">
@@ -122,7 +150,7 @@ export default async function PulsePage() {
       <div className="mb-3">
         <LeaderboardSwitcher
           bracket={(bracketLb ?? []) as any}
-          props={(roundPropsLb ?? []) as any}
+          props={enrichedPropsLb as any}
           currentUserId={user!.id}
         />
       </div>

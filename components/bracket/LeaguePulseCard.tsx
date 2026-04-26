@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import {
-  usersOnStreakAtLeast,
   mostRiddenTeamForRound,
   bracketBustsForRound,
   currentPickRound,
@@ -23,11 +22,6 @@ export default function LeaguePulseCard({
   teams: Team[];
 }) {
   const teamMap = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t])), [teams]);
-
-  const onThreeFlame = useMemo(
-    () => usersOnStreakAtLeast(3, allBracketPicks, series),
-    [allBracketPicks, series],
-  );
 
   const pickRound = useMemo(() => currentPickRound(series), [series]);
 
@@ -58,7 +52,6 @@ export default function LeaguePulseCard({
     <div className="rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-card">
       <div className="mb-3 font-mono text-[9px] font-black uppercase tracking-[0.25em] text-brand">League Pulse</div>
       <div className="space-y-1.5">
-        <PulseRow icon={<span className="text-[16px] leading-none">🔥🔥🔥</span>} label={`${onThreeFlame} ${onThreeFlame === 1 ? "user" : "users"} on a 3-flame+ ride`} />
         {hottestTeam && (
           <PulseRow
             icon={hottestTeam.logo_url ? <img src={hottestTeam.logo_url} alt="" className="h-7 w-7 object-contain" /> : <span className="text-[16px]">🏒</span>}

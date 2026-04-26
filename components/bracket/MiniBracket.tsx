@@ -7,7 +7,6 @@ import {
   ridersForCell,
   farthestPickRound,
   flames,
-  liveTeamStatus,
   roundShortLabel,
   type StreakSeries,
   type StreakPick,
@@ -323,11 +322,6 @@ function TeamBlock({
   const myRide = currentUserId ? riders.find((r) => r.user_id === currentUserId) : undefined;
   const isMyRide = !!myRide && myRide.streak >= 2;
 
-  const liveStatus = useMemo(() => {
-    const s = streakSeries.find((x) => (x.team_a_id === team.id || x.team_b_id === team.id) && x.round === round);
-    return s ? liveTeamStatus(s, team.id) : null;
-  }, [streakSeries, team.id, round]);
-
   const borderClass = isMyRide && !eliminated
     ? "border-amber-400 ring-1 ring-amber-400/40"
     : picked && !eliminated
@@ -368,12 +362,6 @@ function TeamBlock({
               eliminated && "opacity-30"
             )}
           />
-        )}
-        {liveStatus === "leading" && (
-          <span className="absolute left-0 top-0 inline-flex items-center rounded-br-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] font-black leading-none text-emerald-400 shadow-sm">▲</span>
-        )}
-        {liveStatus === "trailing" && (
-          <span className="absolute left-0 top-0 inline-flex items-center rounded-br-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] font-black leading-none text-rink-red shadow-sm">▼</span>
         )}
         {maxStreak > 0 && (
           <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] leading-none text-amber-400 shadow-sm">

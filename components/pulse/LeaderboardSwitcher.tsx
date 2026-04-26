@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic, formatPoints } from "@/lib/utils";
 
-type Row = { user_id: string; gamertag: string; points: number; hits?: number; max_streak?: number; rank: number };
+type Row = { user_id: string; gamertag: string; points: number; hits?: number; max_streak?: number; rank: number; yesterday_points?: number; hit_rate?: number | null };
 
 export default function LeaderboardSwitcher({
   bracket,
@@ -89,13 +89,21 @@ export default function LeaderboardSwitcher({
                     {row.rank === 1 && rows.length > 1 && leaderPoints > 0 && (
                       <div className="font-mono text-[9px] font-bold text-yellow-400">leading</div>
                     )}
+                    {mode === "props" && (row.yesterday_points ?? 0) > 0 && (
+                      <div className="font-mono text-[9px] text-emerald-400/90">+{row.yesterday_points} last night</div>
+                    )}
                   </div>
-                  {row.hits !== undefined && row.hits > 0 && (
+                  {mode === "props" && row.hit_rate != null ? (
+                    <div className="flex flex-col items-end">
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">hit</span>
+                      <span className="font-display text-[11px] font-bold tabular-nums text-ink-300">{row.hit_rate}%</span>
+                    </div>
+                  ) : row.hits !== undefined && row.hits > 0 ? (
                     <div className="flex flex-col items-end">
                       <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">hits</span>
                       <span className="font-display text-[11px] font-bold tabular-nums text-ink-300">{row.hits}</span>
                     </div>
-                  )}
+                  ) : null}
                   <div className="flex flex-col items-end">
                     <span className={cn("font-display text-[18px] font-black tabular-nums leading-none", row.rank === 1 && leaderPoints > 0 ? "text-yellow-400" : isMe ? "text-brand" : "text-ink-100")}>
                       {formatPoints(row.points)}
