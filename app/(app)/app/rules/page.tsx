@@ -12,20 +12,26 @@ export default function RulesPage() {
 
       <Section title="The Bracket">
         <p>
-          Pick series winners. Every correct pick earns you points —
-          and <strong className="text-brand">compounds</strong> if you
-          stick with the same team.
+          One pick per round. Get it right and you bank points. Re-pick
+          the same team next round and they win again, your points
+          <strong className="text-brand"> double</strong>. Keep riding
+          and they keep doubling.
         </p>
 
         <ScoringTable
           rows={[
-            ["Round 1", "1×", "Pick 8 winners. Each correct = 1 pt."],
-            ["Round 2", "2×", "If you picked them in R1 too. Otherwise: 1×."],
-            ["Conf. Final", "4×", "If you rode them since R1. Jump-on = 1×. R2-to-R3 = 2×."],
-            ["Stanley Cup", "8×", "Flawless from R1 to Cup. Nothing else."],
+            ["🔥", "+10", "Pick a winner. Fresh pick or chain just started."],
+            ["🔥🔥", "+20", "Rode the same team for 2 rounds in a row, both won."],
+            ["🔥🔥🔥", "+40", "Rode the same team for 3 rounds, all won."],
+            ["🔥🔥🔥🔥", "+80", "Rode the same team R1 → Cup. Maximum payoff."],
           ]}
         />
 
+        <p className="text-ink-400">
+          Switch teams and the chain resets — but a fresh ride starts
+          at +10. Pick the wrong team and you get 0 for that round
+          (the chain dies, you can start a new one next round).
+        </p>
         <p className="text-ink-400">
           The math rewards conviction. Hedge and you collect crumbs.
           Call the long shot early and you <strong className="text-brand">vault the leaderboard</strong>.
@@ -46,7 +52,7 @@ export default function RulesPage() {
             reward="+5 pts"
             body="Over/Under on total PIMs for a game. Pushes pay 0."
           />
-</div>
+        </div>
       </Section>
 
       <Section title="The Pot">

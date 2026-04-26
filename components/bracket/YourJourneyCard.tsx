@@ -4,7 +4,10 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   userPickHistory,
+  pointsForStreak,
+  flames,
   roundShortLabel,
+  streakDepth,
   type StreakPick,
   type StreakSeries,
 } from "@/lib/bracketStreaks";
@@ -71,9 +74,12 @@ export default function YourJourneyCard({
                   const team = teamMap[row.team_id];
                   const prior = priorPickedByRound[r - 1];
                   const action = r === 1 ? "picked" : prior === row.team_id ? "rode" : "switched to";
+                  const liveStreak = streakDepth(currentUserId, row.team_id, row.round, myPicks, series);
+                  const flameStack = row.outcome === "lost" ? "" : flames(liveStreak);
+                  const wonPoints = row.awarded || pointsForStreak(liveStreak);
                   const outcomeBadge =
                     row.outcome === "won" ? (
-                      <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">+{row.awarded || 5 * row.multiplier}</span>
+                      <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">+{wonPoints}</span>
                     ) : row.outcome === "lost" ? (
                       <span className="rounded-md bg-rink-red/20 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-rink-red">BUST</span>
                     ) : (
@@ -84,9 +90,7 @@ export default function YourJourneyCard({
                       <div className="flex min-w-0 items-center gap-1.5">
                         {team?.logo_url && <img src={team.logo_url} alt="" className="h-4 w-4 flex-none object-contain" />}
                         <span className="truncate font-display text-[12px] text-ink-200">{action} <span className={cn("font-bold", row.outcome === "lost" ? "text-ink-500 line-through" : "text-ink-100")}>{team?.short_name ?? row.team_id}</span></span>
-                        {row.multiplier > 1 && row.outcome !== "lost" && (
-                          <span className="font-mono text-[9px] font-black uppercase text-amber-400">{row.multiplier}×</span>
-                        )}
+                        {flameStack && <span className="font-mono text-[11px] leading-none text-amber-400">{flameStack}</span>}
                       </div>
                       {outcomeBadge}
                     </div>

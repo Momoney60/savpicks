@@ -87,7 +87,17 @@ export function multiplierFor(streak: number): number {
   if (streak < 1) return 1;
   return Math.pow(2, Math.min(streak, FLAME_CAP) - 1);
 }
+const BASE_POINTS = 10;
 
+export function pointsForStreak(streak: number): number {
+  if (streak < 1) return BASE_POINTS;
+  return BASE_POINTS * multiplierFor(streak);
+}
+
+export function flames(streak: number): string {
+  const n = Math.max(0, Math.min(streak, FLAME_CAP));
+  return "🔥".repeat(n);
+}
 export type ActiveRide = {
   team_id: string;
   streak: number;

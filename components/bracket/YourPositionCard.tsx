@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { userActiveRides, multiplierFor, currentPickRound, type StreakPick, type StreakSeries } from "@/lib/bracketStreaks";
+import { userActiveRides, flames, currentPickRound, type StreakPick, type StreakSeries } from "@/lib/bracketStreaks";
 
 type Team = { id: string; short_name: string; logo_url: string | null };
 
@@ -47,7 +47,8 @@ export default function YourPositionCard({
   }, [pickRound, series, myPicks, currentUserId]);
 
   const hottestTeam = hottest ? teamMap[hottest.team_id] : null;
-  const hottestMult = hottest ? multiplierFor(hottest.streak) : 1;
+  const hottestFlames = hottest ? flames(hottest.streak) : "";
+  const hottestLabel = hottest && hottest.streak >= 2 ? "Riding" : hottest ? "Picked" : "";
 
   return (
     <div className="rounded-2xl border border-ink-700 bg-ink-850 p-4 shadow-card">
@@ -60,8 +61,8 @@ export default function YourPositionCard({
           <div className="flex items-center gap-2">
             {hottestTeam.logo_url && <img src={hottestTeam.logo_url} alt="" className="h-9 w-9 object-contain" />}
             <div className="text-right">
-              <div className="font-display text-[14px] font-bold leading-tight text-ink-100">{hottestTeam.short_name}</div>
-              <div className="font-mono text-[10px] uppercase tracking-wider text-amber-400">{hottest.streak}🔥 · {hottestMult}× ride</div>
+              <div className="font-display text-[14px] font-bold leading-tight text-ink-100">{hottestLabel} {hottestTeam.short_name}</div>
+              <div className="font-mono text-[12px] leading-none text-amber-400">{hottestFlames || "—"}</div>
             </div>
           </div>
         ) : (

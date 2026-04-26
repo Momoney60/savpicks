@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
 import {
   streakDepth,
-  multiplierFor,
+  pointsForStreak,
+  flames,
   roundShortLabel,
   type StreakPick,
   type StreakSeries,
@@ -226,8 +227,10 @@ function TeamButton({
 
   const isRide = priorChain >= 1;
   const isSwitch = !isRide && opponentPriorChain >= 1;
-  const lockMultiplier = isRide ? multiplierFor(priorChain + 1) : 1;
-  const subLabel = isRide ? `Lock ${lockMultiplier}×` : isSwitch ? "Reset to 1×" : "+5 pts";
+  const newStreak = isRide ? priorChain + 1 : 1;
+  const winPoints = pointsForStreak(newStreak);
+  const flameStack = isRide ? flames(newStreak) : "";
+  const tagLabel = isRide ? "RIDE" : isSwitch ? "SWITCH" : "PICK";
 
   return (
     <button
@@ -244,7 +247,7 @@ function TeamButton({
     >
       <div className="flex w-full items-center justify-between">
         <span className={cn("font-mono text-[9px] font-black uppercase tracking-wider", isRide ? "text-amber-400" : isSwitch ? "text-ink-400" : "text-ink-500")}>
-          {isRide ? `${priorChain}🔥 RIDE` : isSwitch ? "SWITCH" : "PICK"}
+          {tagLabel}
         </span>
         {picked && (
           <span className="font-mono text-[9px] font-black uppercase text-brand">✓ MINE</span>
@@ -254,7 +257,10 @@ function TeamButton({
         {team.logo_url && <img src={team.logo_url} alt="" className="h-9 w-9 object-contain" />}
         <div className="min-w-0">
           <div className="truncate font-display text-[14px] font-bold leading-tight text-ink-100">{team.short_name}</div>
-          <div className={cn("font-mono text-[10px] uppercase tracking-wider", isRide ? "text-amber-400" : "text-ink-500")}>{subLabel}</div>
+          <div className={cn("flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider", isRide ? "text-amber-400" : "text-ink-300")}>
+            {flameStack && <span className="leading-none">{flameStack}</span>}
+            <span>+{winPoints} pts if wins</span>
+          </div>
         </div>
       </div>
       <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">

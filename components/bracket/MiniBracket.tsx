@@ -6,6 +6,7 @@ import { cn, haptic } from "@/lib/utils";
 import {
   ridersForCell,
   farthestPickRound,
+  flames,
   roundShortLabel,
   type StreakSeries,
   type StreakPick,
@@ -360,8 +361,8 @@ function TeamBlock({
           />
         )}
         {maxStreak > 0 && (
-          <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] font-black leading-none text-amber-400 shadow-sm">
-            {maxStreak}🔥
+          <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] leading-none text-amber-400 shadow-sm">
+            {flames(maxStreak)}
           </span>
         )}
       </div>

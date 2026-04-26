@@ -122,13 +122,13 @@ function FlameLegend() {
           >
             <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-400/5 px-3.5 py-3 text-[12px] leading-snug text-ink-300">
               <p>
-                <span className="text-amber-400">🔥</span> = a <strong>ride streak</strong>. Each round you correctly pick the same team again, your points double.
+                Flames track your <strong>ride streak</strong>. Each round you re-pick the same team and they win, your points double.
               </p>
-              <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-                1🔥 +5 · 2🔥 +10 · 3🔥 +20 · 4🔥 +40 (full Cup ride)
+              <p className="mt-1.5 font-mono text-[11px] tracking-wider text-amber-400">
+                🔥 +10 · 🔥🔥 +20 · 🔥🔥🔥 +40 · 🔥🔥🔥🔥 +80
               </p>
-              <p className="mt-1.5">
-                Switch teams and the chain resets — but a new ride starts at 1×.
+              <p className="mt-1.5 text-ink-400">
+                Switch teams and the chain resets — but a new ride starts fresh at +10.
               </p>
             </div>
           </motion.div>
