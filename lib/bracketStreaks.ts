@@ -4,6 +4,8 @@ export type StreakSeries = {
   team_a_id: string | null;
   team_b_id: string | null;
   winner_id: string | null;
+  status?: "upcoming" | "live" | "completed";
+  picks_lock_at?: string | null;
 };
 
 export type StreakPick = {
@@ -79,4 +81,181 @@ export function roundShortLabel(round: number): string {
   if (round === 3) return "Conf Final";
   if (round === 4) return "Cup";
   return `R${round}`;
+}
+
+export function multiplierFor(streak: number): number {
+  if (streak < 1) return 1;
+  return Math.pow(2, Math.min(streak, FLAME_CAP) - 1);
+}
+
+export type ActiveRide = {
+  team_id: string;
+  streak: number;
+  current_round: number;
+  current_series_id: string;
+  current_series_status: "upcoming" | "live" | "completed";
+  current_series_winner_id: string | null;
+};
+
+export function userActiveRides(
+  userId: string,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): ActiveRide[] {
+  const userPicks = picks.filter((p) => p.user_id === userId);
+  const out: ActiveRide[] = [];
+  for (const pick of userPicks) {
+    const s = series.find((x) => x.id === pick.series_id);
+    if (!s) continue;
+    if (s.winner_id && s.winner_id !== pick.picked_team_id) continue;
+    const streak = streakDepth(userId, pick.picked_team_id, s.round, picks, series);
+    if (streak === 0) continue;
+    out.push({
+      team_id: pick.picked_team_id,
+      streak,
+      current_round: s.round,
+      current_series_id: s.id,
+      current_series_status: s.status ?? "upcoming",
+      current_series_winner_id: s.winner_id ?? null,
+    });
+  }
+  return out.sort((a, b) => b.streak - a.streak || b.current_round - a.current_round);
+}
+
+export type PickHistoryRow = {
+  round: number;
+  series_id: string;
+  team_id: string;
+  opponent_id: string | null;
+  status: "upcoming" | "live" | "completed";
+  outcome: "won" | "lost" | "pending";
+  multiplier: number;
+  awarded: number;
+};
+
+export function userPickHistory(
+  userId: string,
+  picks: StreakPick[],
+  series: StreakSeries[],
+  awardedByPick: Record<string, number> = {},
+): PickHistoryRow[] {
+  const out: PickHistoryRow[] = [];
+  const userPicks = picks.filter((p) => p.user_id === userId);
+  for (const pick of userPicks) {
+    const s = series.find((x) => x.id === pick.series_id);
+    if (!s) continue;
+    const opponent =
+      s.team_a_id === pick.picked_team_id ? s.team_b_id : s.team_a_id;
+    const status = (s.status ?? "upcoming") as "upcoming" | "live" | "completed";
+    let outcome: "won" | "lost" | "pending" = "pending";
+    if (s.winner_id) outcome = s.winner_id === pick.picked_team_id ? "won" : "lost";
+    const streak =
+      outcome === "lost"
+        ? 0
+        : streakDepth(userId, pick.picked_team_id, s.round, picks, series);
+    const multiplier = streak > 0 ? multiplierFor(streak) : 1;
+    out.push({
+      round: s.round,
+      series_id: s.id,
+      team_id: pick.picked_team_id,
+      opponent_id: opponent,
+      status,
+      outcome,
+      multiplier,
+      awarded: awardedByPick[s.id] ?? 0,
+    });
+  }
+  return out.sort((a, b) => a.round - b.round);
+}
+
+export function mostRiddenTeamForRound(
+  round: number,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): { team_id: string; count: number } | null {
+  const counts: Record<string, number> = {};
+  const roundSeriesIds = new Set(
+    series.filter((s) => s.round === round).map((s) => s.id),
+  );
+  for (const p of picks) {
+    if (!roundSeriesIds.has(p.series_id)) continue;
+    counts[p.picked_team_id] = (counts[p.picked_team_id] ?? 0) + 1;
+  }
+  let topId: string | null = null;
+  let topCount = 0;
+  for (const [id, count] of Object.entries(counts)) {
+    if (count > topCount) {
+      topId = id;
+      topCount = count;
+    }
+  }
+  if (!topId) return null;
+  return { team_id: topId, count: topCount };
+}
+
+export function usersOnStreakAtLeast(
+  threshold: number,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): number {
+  const userIds = Array.from(new Set(picks.map((p) => p.user_id)));
+  let count = 0;
+  for (const userId of userIds) {
+    const rides = userActiveRides(userId, picks, series);
+    const max = rides.reduce((m, r) => Math.max(m, r.streak), 0);
+    if (max >= threshold) count++;
+  }
+  return count;
+}
+
+export function bracketBustsForRound(
+  round: number,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): number {
+  const roundSeries = series.filter((s) => s.round === round && s.winner_id);
+  let count = 0;
+  const userIds = Array.from(new Set(picks.map((p) => p.user_id)));
+  for (const userId of userIds) {
+    let busted = false;
+    for (const s of roundSeries) {
+      const pick = picks.find((p) => p.user_id === userId && p.series_id === s.id);
+      if (pick && s.winner_id && pick.picked_team_id !== s.winner_id) {
+        busted = true;
+        break;
+      }
+    }
+    if (busted) count++;
+  }
+  return count;
+}
+
+export function currentPickRound(series: StreakSeries[]): number | null {
+  const now = Date.now();
+  const rounds = series
+    .filter((s) => {
+      if (s.status !== "upcoming") return false;
+      if (!s.picks_lock_at) return true;
+      return new Date(s.picks_lock_at).getTime() > now;
+    })
+    .map((s) => s.round);
+  if (rounds.length === 0) return null;
+  return Math.min(...rounds);
+}
+
+export function priorRoundPickedTeam(
+  userId: string,
+  currentRound: number,
+  picks: StreakPick[],
+  series: StreakSeries[],
+): string | null {
+  if (currentRound <= 1) return null;
+  const priorSeries = series.filter((s) => s.round === currentRound - 1);
+  for (const s of priorSeries) {
+    const pick = picks.find((p) => p.user_id === userId && p.series_id === s.id);
+    if (pick && s.winner_id === pick.picked_team_id) {
+      return pick.picked_team_id;
+    }
+  }
+  return null;
 }

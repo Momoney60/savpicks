@@ -103,13 +103,13 @@ export default function MiniBracket({
           </div>
 
           <div className="grid grid-cols-7 items-stretch gap-1">
-            <Column label="R1" series={westR1} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
-            <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
-            <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} center />
-            <CupColumn scf={scf} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
-            <FlexColumn label="ECF" cells={[eastCF]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} center />
-            <FlexColumn label="R2" cells={[eastR2[0], eastR2[1]]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
-            <Column label="R1" series={eastR1} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
+            <Column label="R1" series={westR1} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
+            <FlexColumn label="R2" cells={[westR2[0], westR2[1]]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
+            <FlexColumn label="WCF" cells={[westCF]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} center currentUserId={currentUserId} />
+            <CupColumn scf={scf} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
+            <FlexColumn label="ECF" cells={[eastCF]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} center currentUserId={currentUserId} />
+            <FlexColumn label="R2" cells={[eastR2[0], eastR2[1]]} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
+            <Column label="R1" series={eastR1} myPick={myPick} picks={allBracketPicks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
           </div>
 
           <div className="mt-2 flex items-center justify-between px-1 font-mono text-[8px] uppercase tracking-widest text-ink-500">
@@ -144,15 +144,16 @@ type ColumnProps = {
   picks: StreakPick[];
   streakSeries: StreakSeries[];
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
+  currentUserId?: string;
 };
 
-function Column({ label, series, myPick, picks, streakSeries, onTeamTap }: ColumnProps) {
+function Column({ label, series, myPick, picks, streakSeries, onTeamTap, currentUserId }: ColumnProps) {
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
       <div className="flex flex-1 flex-col justify-between gap-6">
         {series.map((s) => (
-          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} />
+          <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
         ))}
       </div>
     </div>
@@ -167,6 +168,7 @@ function FlexColumn({
   streakSeries,
   onTeamTap,
   center,
+  currentUserId,
 }: {
   label: string;
   cells: (Series | undefined)[];
@@ -175,13 +177,14 @@ function FlexColumn({
   streakSeries: StreakSeries[];
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
   center?: boolean;
+  currentUserId?: string;
 }) {
   return (
     <div className="flex flex-col">
       <RoundLabel label={label} />
       <div className={cn("flex flex-1 flex-col gap-2", center ? "justify-center" : "justify-around")}>
         {cells.map((s, i) =>
-          s ? <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} /> : <EmptyCell key={i} />
+          s ? <MatchupCell key={s.id} series={s} myPick={myPick(s.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} /> : <EmptyCell key={i} />
         )}
       </div>
     </div>
@@ -194,12 +197,14 @@ function CupColumn({
   picks,
   streakSeries,
   onTeamTap,
+  currentUserId,
 }: {
   scf: Series | undefined;
   myPick: (sid: string) => string | undefined;
   picks: StreakPick[];
   streakSeries: StreakSeries[];
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
+  currentUserId?: string;
 }) {
   return (
     <div className="flex flex-col">
@@ -210,7 +215,7 @@ function CupColumn({
             Cup
           </div>
           <div className="mt-0.5">
-            {scf ? <MatchupCell series={scf} myPick={myPick(scf.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} /> : <EmptyCell />}
+            {scf ? <MatchupCell series={scf} myPick={myPick(scf.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} /> : <EmptyCell />}
           </div>
         </div>
       </div>
@@ -236,12 +241,14 @@ function MatchupCell({
   picks,
   streakSeries,
   onTeamTap,
+  currentUserId,
 }: {
   series: Series;
   myPick?: string;
   picks: StreakPick[];
   streakSeries: StreakSeries[];
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
+  currentUserId?: string;
 }) {
   const elim = (id?: string) => series.winner_id !== null && series.winner_id !== id;
   return (
@@ -257,6 +264,7 @@ function MatchupCell({
         picks={picks}
         streakSeries={streakSeries}
         onTeamTap={onTeamTap}
+        currentUserId={currentUserId}
       />
       <TeamBlock
         team={series.team_b}
@@ -269,6 +277,7 @@ function MatchupCell({
         picks={picks}
         streakSeries={streakSeries}
         onTeamTap={onTeamTap}
+        currentUserId={currentUserId}
       />
     </div>
   );
@@ -285,6 +294,7 @@ function TeamBlock({
   picks,
   streakSeries,
   onTeamTap,
+  currentUserId,
 }: {
   team: Team | null;
   seed: number | null;
@@ -296,6 +306,7 @@ function TeamBlock({
   picks: StreakPick[];
   streakSeries: StreakSeries[];
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
+  currentUserId?: string;
 }) {
   if (!team) return <div className="h-12" />;
 
@@ -304,8 +315,12 @@ function TeamBlock({
     [team.id, round, picks, streakSeries, eliminated],
   );
   const maxStreak = riders.length > 0 ? riders[0].streak : 0;
+  const myRide = currentUserId ? riders.find((r) => r.user_id === currentUserId) : undefined;
+  const isMyRide = !!myRide && myRide.streak >= 2;
 
-  const borderClass = picked && !eliminated
+  const borderClass = isMyRide && !eliminated
+    ? "border-amber-400 ring-1 ring-amber-400/40"
+    : picked && !eliminated
     ? "border-brand"
     : eliminated
     ? "border-rink-red bg-rink-red/10"

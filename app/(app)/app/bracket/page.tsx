@@ -40,9 +40,10 @@ export default async function BracketPage() {
       </div>
 
       <BracketView
-        series={series ?? []}
-        myPicks={myPicks ?? []}
-        teams={teams ?? []}
+        series={(series ?? []) as any}
+        myPicks={(myPicks ?? []) as any}
+        teams={(teams ?? []) as any}
+        allBracketPicks={(allBracketPicks ?? []) as any}
         currentUserId={user!.id}
       />
     </main>
