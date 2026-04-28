@@ -73,15 +73,15 @@ export async function POST(request: Request) {
 
   const propIds = todayProps.map((p) => p.id);
 
-  const [authResult, picksResult, prefsResult, publicUsersResult] = await Promise.all([
+  const [authResult, picksResult, prefsResult, profilesResult] = await Promise.all([
     supabase.auth.admin.listUsers(),
     supabase.from("prop_picks").select("user_id, prop_id").in("prop_id", propIds),
     supabase.from("user_preferences").select("user_id, email_reminders, unsubscribe_token"),
-    supabase.from("users").select("user_id, gamertag"),
+    supabase.from("profiles").select("id, gamertag"),
   ]);
 
   const authUsers = authResult.data?.users ?? [];
-  const gamertagMap = new Map((publicUsersResult.data ?? []).map((u: any) => [u.user_id, u.gamertag]));
+  const gamertagMap = new Map((profilesResult.data ?? []).map((u: any) => [u.id, u.gamertag]));
 
   const picksByUser = new Map<string, Set<string>>();
   (picksResult.data ?? []).forEach((p: any) => {
@@ -138,31 +138,46 @@ export async function POST(request: Request) {
         subject: "🏒 SavBot 2.0 here — puck drops in 1 hour",
         html: buildEmailHtml(r),
       });
-      results.push({ email: r.email, status: "sent", id: res.data?.id, error: res.error?.message });
+      const errMsg = res.error?.message ?? (res as any).error?.error ?? null;
+      if (errMsg || !res.data?.id) {
+        results.push({ email: r.email, status: "error", error: errMsg ?? "no id returned", raw: res.error ?? null });
+      } else {
+        results.push({ email: r.email, status: "sent", id: res.data.id });
+      }
     } catch (e: any) {
-      results.push({ email: r.email, status: "error", error: e.message });
+      results.push({ email: r.email, status: "error", error: e?.message ?? String(e) });
     }
   }
 
-  await supabase.from("reminder_sends").insert({
-    date: etDate,
-    kind: "pregame_1h",
-    recipient_count: recipients.length,
-    metadata: { results, first_game: firstGame.away_team_id + " @ " + firstGame.home_team_id },
-  });
+  const sentCount = results.filter((r) => r.status === "sent").length;
+  const errorCount = results.filter((r) => r.status === "error").length;
+
+  // Only mark "done for the day" if at least one send actually succeeded.
+  // If every send errored, leave the row absent so the next cron tick retries
+  // once the underlying issue (auth / from-address / Resend outage) is fixed.
+  if (sentCount > 0) {
+    await supabase.from("reminder_sends").insert({
+      date: etDate,
+      kind: "pregame_1h",
+      recipient_count: sentCount,
+      metadata: { results, first_game: firstGame.away_team_id + " @ " + firstGame.home_team_id, eligible: recipients.length },
+    });
+  }
 
   return NextResponse.json({
-    ok: true,
+    ok: errorCount === 0,
     date: etDate,
-    sent: results.filter((r) => r.status === "sent").length,
-    errors: results.filter((r) => r.status === "error").length,
+    eligible: recipients.length,
+    sent: sentCount,
+    errors: errorCount,
+    idempotency_row_inserted: sentCount > 0,
     results,
-  });
+  }, { status: errorCount > 0 && sentCount === 0 ? 502 : 200 });
 }
 
 function buildEmailHtml(r: { gamertag: string; unsubscribe_token: string; missing_count: number }): string {
   const ubUrl = "https://savpicks.com/api/unsubscribe/" + r.unsubscribe_token;
   const ctaUrl = "https://savpicks.com/app/live";
   const missingText = r.missing_count === 1 ? "1 pick still unmade" : r.missing_count + " picks still unmade";
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#0a0a0a;color:#e5e5e5;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;"><div style="max-width:560px;margin:0 auto;padding:40px 24px;"><div style="text-align:center;margin-bottom:32px;"><div style="font-size:42px;line-height:1;">🏒</div><h1 style="font-size:24px;font-weight:900;letter-spacing:-0.5px;margin:18px 0 6px;color:#7DD3FC;">SavBot 2.0</h1><div style="font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;color:#6b7280;letter-spacing:0.25em;">BEEP BOOP BAAP</div></div><div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:32px 28px;"><p style="font-size:17px;line-height:1.5;margin:0 0 18px;color:#fff;"><strong style="color:#7DD3FC;">' + r.gamertag + '</strong>, this is SavBot 2.0 🤖</p><p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#d4d4d4;">First puck drop is in 1 hour. Reminder to make your picks — you have <strong style="color:#fff;">' + missingText + '</strong>.</p><div style="text-align:center;margin:32px 0 8px;"><a href="' + ctaUrl + '" style="display:inline-block;background:#7DD3FC;color:#0a0a0a;text-decoration:none;padding:14px 34px;border-radius:999px;font-weight:900;font-size:15px;letter-spacing:0.02em;">Lock in your picks →</a></div></div><div style="text-align:center;margin-top:28px;font-size:11px;color:#6b7280;"><a href="' + ubUrl + '" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a></div></div></body></html>';
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#0a0a0a;color:#e5e5e5;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;"><div style="max-width:560px;margin:0 auto;padding:40px 24px;"><div style="text-align:center;margin-bottom:32px;"><div style="font-size:42px;line-height:1;">🏒</div><h1 style="font-size:24px;font-weight:900;letter-spacing:-0.5px;margin:18px 0 6px;color:#7DD3FC;">SavBot 2.0</h1><div style="font-family:ui-monospace,SFMono-Regular,monospace;font-size:10px;color:#6b7280;letter-spacing:0.25em;">BEEP BOOP BAAP</div></div><div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:32px 28px;"><p style="font-size:17px;line-height:1.5;margin:0 0 18px;color:#fff;"><strong style="color:#7DD3FC;">' + r.gamertag + '</strong>, this is SavBot 2.0 🤖</p><p style="font-size:15px;line-height:1.6;margin:0 0 24px;color:#d4d4d4;">First puck drop is in 1 hour. Reminder to make your picks — you have <strong style="color:#fff;">' + missingText + '</strong>.</p><div style="text-align:center;margin:32px 0 8px;"><a href="' + ctaUrl + '" style="text-decoration:none;display:inline-block;background:#7DD3FC;color:#0a0a0a;padding:14px 34px;border-radius:999px;font-weight:900;font-size:15px;letter-spacing:0.02em;">Lock in your picks →</a></div></div><div style="text-align:center;margin-top:28px;font-size:11px;color:#6b7280;"><a href="' + ubUrl + '" style="color:#6b7280;text-decoration:underline;">Unsubscribe</a></div></div></body></html>';
 }
