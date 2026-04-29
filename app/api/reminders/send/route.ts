@@ -129,8 +129,17 @@ export async function POST(request: Request) {
   }
   const resend = new Resend(RESEND_API_KEY);
 
+  const resend = new Resend(RESEND_API_KEY);
+
+  // Resend's default rate limit is 5 requests/sec. Sleep ~220ms between
+  // sends to stay safely under that ceiling without exceeding the 60s
+  // function maxDuration even at full pool size (13 users × 220ms ≈ 3s).
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const results: any[] = [];
-  for (const r of recipients) {
+  for (let i = 0; i < recipients.length; i++) {
+    const r = recipients[i];
+    if (i > 0) await sleep(220);
     try {
       const res = await resend.emails.send({
         from: "SavBot <savbot@savpicks.com>",
