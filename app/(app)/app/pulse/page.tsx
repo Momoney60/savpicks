@@ -46,7 +46,16 @@ export default async function PulsePage() {
   const myBracket = (bracketLb ?? []).find((r: any) => r.user_id === user!.id);
   const myProps = (roundPropsLb ?? []).find((r: any) => r.user_id === user!.id);
   const totalPlayers = mappedUsers.length;
-  const picksCount = (picks ?? []).filter((p: any) => p.user_id === user!.id).length;
+
+  const seriesList = (series ?? []) as any[];
+  const r1SeriesIds = new Set(seriesList.filter((s: any) => s.round === 1 && s.team_a && s.team_b).map((s: any) => s.id));
+  const r2Open = seriesList.filter((s: any) => s.round === 2 && s.team_a && s.team_b);
+  const r2SeriesIds = new Set(r2Open.map((s: any) => s.id));
+  const myPicks = (picks ?? []).filter((p: any) => p.user_id === user!.id);
+  const r1PicksCount = myPicks.filter((p: any) => r1SeriesIds.has(p.series_id)).length;
+  const r2PicksCount = myPicks.filter((p: any) => r2SeriesIds.has(p.series_id)).length;
+  const r1Total = r1SeriesIds.size;
+  const r2Total = r2Open.length;
   const myPropCount = (propPicks ?? []).filter((p: any) => p.user_id === user!.id).length;
   const etDate = (d: string | Date) =>
     new Date(d).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -159,16 +168,34 @@ export default async function PulsePage() {
       <div className="mb-3 space-y-3">
         <CollapsibleSection
           title="Round 1 Picks"
-          subtitle="Reveals at lock · 8 series"
-          count={`${picksCount}/8`}
+          subtitle={`Reveals at lock · ${r1Total} ${r1Total === 1 ? "series" : "series"}`}
+          count={`${r1PicksCount}/${r1Total}`}
         >
           <PicksVertical
             series={(series ?? []) as any}
             picks={(picks ?? []) as any}
             users={mappedUsers}
             currentUserId={user!.id}
+            round={1}
           />
         </CollapsibleSection>
+
+        {r2Total > 0 && (
+          <CollapsibleSection
+            title="Round 2 Picks"
+            subtitle={`Reveals at lock · ${r2Total} ${r2Total === 1 ? "series" : "series"}`}
+            count={`${r2PicksCount}/${r2Total}`}
+            defaultOpen={true}
+          >
+            <PicksVertical
+              series={(series ?? []) as any}
+              picks={(picks ?? []) as any}
+              users={mappedUsers}
+              currentUserId={user!.id}
+              round={2}
+            />
+          </CollapsibleSection>
+        )}
 
         <CollapsibleSection
           title="Today's Props"

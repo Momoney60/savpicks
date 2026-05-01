@@ -30,18 +30,20 @@ export default function PicksVertical({
   picks,
   users,
   currentUserId,
+  round = 1,
 }: {
   series: Series[];
   picks: Pick[];
   users: User[];
   currentUserId: string;
+  round?: number;
 }) {
-  const r1 = series
-    .filter((s) => s.round === 1)
+  const items = series
+    .filter((s) => s.round === round && s.team_a && s.team_b)
     .sort((a, b) => (a.bracket_slot ?? "").localeCompare(b.bracket_slot ?? ""));
   const now = new Date();
 
-  if (r1.length === 0 || users.length === 0) {
+  if (items.length === 0 || users.length === 0) {
     return (
       <div className="rounded-xl border border-ink-700 bg-ink-850 p-6 text-center">
         <p className="text-[12px] text-ink-400">No picks yet.</p>
@@ -51,7 +53,7 @@ export default function PicksVertical({
 
   return (
     <div className="space-y-2">
-      {r1.map((s) => {
+      {items.map((s) => {
         const sPicks = picks.filter((p) => p.series_id === s.id);
         const isLocked = !!s.picks_lock_at && new Date(s.picks_lock_at) < now;
         const tA = s.team_a;
