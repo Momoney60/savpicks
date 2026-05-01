@@ -110,6 +110,15 @@ export default function ThisRoundDecision({
           <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{roundShortLabel(pickRound)}</span>
         </div>
 
+        {pickRound > 1 && (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] px-3 py-2">
+            <span className="text-[14px] leading-none">🔥</span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-amber-400">
+              Ride a R{pickRound - 1} winner = 2× points. Switch teams to reset the chain.
+            </span>
+          </div>
+        )}
+
         {roundSeries.map((s) => {
           const my = myPicks.find((p) => p.user_id === currentUserId && p.series_id === s.id);
           const optPick = optimistic[s.id];
@@ -238,8 +247,10 @@ function TeamButton({
       onClick={() => !locked && onPick()}
       disabled={locked}
       className={cn(
-        "relative flex flex-col items-start gap-2 bg-ink-850 px-3.5 py-3.5 text-left transition",
-        picked && !locked && "bg-brand/10 ring-1 ring-inset ring-brand",
+        "relative flex flex-col items-start gap-2 px-3.5 py-3.5 text-left transition",
+        picked && !locked ? "bg-brand/10 ring-1 ring-inset ring-brand" :
+        isRide && !locked ? "bg-amber-400/[0.06] ring-1 ring-inset ring-amber-400/40" :
+        "bg-ink-850",
         !locked && !picked && "active:bg-ink-800",
         locked && "cursor-not-allowed opacity-80",
       )}
@@ -247,7 +258,7 @@ function TeamButton({
     >
       <div className="flex w-full items-center justify-between">
         <span className={cn("font-mono text-[9px] font-black uppercase tracking-wider", isRide ? "text-amber-400" : isSwitch ? "text-ink-400" : "text-ink-500")}>
-          {tagLabel}
+          {isRide ? `🔥 ${tagLabel} · 2×` : tagLabel}
         </span>
         {picked && (
           <span className="font-mono text-[9px] font-black uppercase text-brand">✓ MINE</span>
