@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { streakDepth, flames, type StreakSeries, type StreakPick } from "@/lib/bracketStreaks";
 
 type Team = { id: string; short_name: string; logo_url: string | null; primary_color: string | null };
 
@@ -42,6 +44,22 @@ export default function PicksVertical({
     .filter((s) => s.round === round && s.team_a && s.team_b)
     .sort((a, b) => (a.bracket_slot ?? "").localeCompare(b.bracket_slot ?? ""));
   const now = new Date();
+
+  const streakSeriesView: StreakSeries[] = useMemo(
+    () => series.map((s) => ({
+      id: s.id,
+      round: s.round,
+      team_a_id: s.team_a?.id ?? null,
+      team_b_id: s.team_b?.id ?? null,
+      winner_id: s.winner_id,
+      picks_lock_at: s.picks_lock_at,
+    })),
+    [series],
+  );
+  const streakPicks: StreakPick[] = useMemo(
+    () => picks.map((p) => ({ user_id: p.user_id, series_id: p.series_id, picked_team_id: p.picked_team_id })),
+    [picks],
+  );
 
   if (items.length === 0 || users.length === 0) {
     return (
@@ -125,11 +143,18 @@ export default function PicksVertical({
                 const isMe = u.user_id === currentUserId;
                 const canSee = isMe || isLocked;
                 const pickedTeam = pick?.picked_team_id === tA?.id ? tA : tB;
+                const userStreak = pick && canSee && pickedTeam
+                  ? streakDepth(u.user_id, pickedTeam.id, s.round, streakPicks, streakSeriesView)
+                  : 0;
+                const isRider = userStreak >= 2;
 
                 return (
                   <div
                     key={u.user_id}
-                    className="flex items-center justify-between px-3 py-1.5"
+                    className={cn(
+                      "flex items-center justify-between px-3 py-1.5",
+                      isRider && "bg-amber-400/[0.04]"
+                    )}
                   >
                     <span
                       className={cn(
@@ -147,6 +172,11 @@ export default function PicksVertical({
                       <span className="font-mono text-[10px] text-ink-500">🔒</span>
                     ) : (
                       <div className="flex items-center gap-1.5">
+                        {isRider && (
+                          <span className="font-mono text-[11px] leading-none text-amber-400" title={`${userStreak}-round ride`}>
+                            {flames(userStreak)}
+                          </span>
+                        )}
                         {pickedTeam?.logo_url && (
                           <img
                             src={pickedTeam.logo_url}

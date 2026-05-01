@@ -74,6 +74,7 @@ export default function MiniBracket({
         status: (s as any).status,
         wins_a: s.wins_a,
         wins_b: s.wins_b,
+        picks_lock_at: (s as any).picks_lock_at ?? null,
       })),
     [series],
   );
@@ -409,6 +410,21 @@ function OnTheRideDrawer({
     [profiles],
   );
 
+  const cellSeries = useMemo(
+    () => series.find((s) => s.round === round && (s.team_a_id === teamId || s.team_b_id === teamId)),
+    [series, teamId, round],
+  );
+  const isLocked = useMemo(() => {
+    if (!cellSeries) return true;
+    if (cellSeries.status === "live" || cellSeries.status === "completed") return true;
+    if (!cellSeries.picks_lock_at) return false;
+    return new Date(cellSeries.picks_lock_at).getTime() <= Date.now();
+  }, [cellSeries]);
+  const lockMessage = useMemo(() => {
+    if (isLocked || !cellSeries?.picks_lock_at) return null;
+    return new Date(cellSeries.picks_lock_at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  }, [isLocked, cellSeries]);
+
   const riders = useMemo(() => {
     const base = ridersForCell(teamId, round, picks, series);
     return base.map((r) => {
@@ -416,6 +432,12 @@ function OnTheRideDrawer({
       return { ...r, farthestRound: farthest };
     });
   }, [teamId, round, picks, series]);
+
+  const visibleRiders = useMemo(
+    () => (isLocked ? riders : riders.filter((r) => r.user_id === currentUserId)),
+    [isLocked, riders, currentUserId],
+  );
+  const hiddenCount = isLocked ? 0 : Math.max(0, riders.length - visibleRiders.length);
 
   return (
     <motion.div
@@ -438,17 +460,23 @@ function OnTheRideDrawer({
           <p className="font-mono text-[10px] font-black uppercase tracking-[0.25em] text-brand">On the Ride</p>
           <h2 className="mt-1 font-display text-[22px] font-black leading-tight tracking-tight text-ink-100">{teamLabel}</h2>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-            {riders.length} {riders.length === 1 ? "rider" : "riders"} · {roundShortLabel(round)}
+            {isLocked
+              ? `${riders.length} ${riders.length === 1 ? "rider" : "riders"} · ${roundShortLabel(round)}`
+              : lockMessage
+              ? `Locks ${lockMessage} · reveals at lock`
+              : `Reveals at lock · ${roundShortLabel(round)}`}
           </p>
         </div>
 
-        {riders.length === 0 ? (
+        {visibleRiders.length === 0 && hiddenCount === 0 ? (
           <div className="rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-8 text-center text-[12px] text-ink-500">
-            Nobody&apos;s riding {teamLabel} alive in {roundShortLabel(round)}.
+            {isLocked
+              ? <>Nobody&apos;s riding {teamLabel} alive in {roundShortLabel(round)}.</>
+              : <>Picks reveal at lock.</>}
           </div>
         ) : (
           <div className="space-y-1.5">
-            {riders.map((r) => {
+            {visibleRiders.map((r) => {
               const name = userMap[r.user_id] ?? "?";
               const isMe = r.user_id === currentUserId;
               const through = roundShortLabel(r.farthestRound);
@@ -457,7 +485,7 @@ function OnTheRideDrawer({
                   key={r.user_id}
                   className={cn(
                     "flex items-center gap-3 rounded-xl border bg-ink-900/60 px-3 py-2.5",
-                    isMe ? "border-brand/50" : "border-ink-700",
+                    r.streak >= 2 ? "border-amber-400/50 bg-amber-400/[0.04]" : isMe ? "border-brand/50" : "border-ink-700",
                   )}
                 >
                   <div className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-full font-mono text-[11px] font-black text-white", chipColor(r.user_id))}>
@@ -480,6 +508,11 @@ function OnTheRideDrawer({
                 </div>
               );
             })}
+            {hiddenCount > 0 && (
+              <div className="rounded-xl border border-dashed border-ink-700 bg-ink-900/40 px-3 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-ink-500">
+                {hiddenCount} other{hiddenCount === 1 ? "" : "s"} hidden — reveals at lock
+              </div>
+            )}
           </div>
         )}
 
