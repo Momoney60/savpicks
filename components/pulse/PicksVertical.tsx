@@ -147,6 +147,7 @@ export default function PicksVertical({
                   ? streakDepth(u.user_id, pickedTeam.id, s.round, streakPicks, streakSeriesView)
                   : 0;
                 const isRider = userStreak >= 2;
+                const showFlames = userStreak >= 1;
 
                 return (
                   <div
@@ -172,8 +173,8 @@ export default function PicksVertical({
                       <span className="font-mono text-[10px] text-ink-500">🔒</span>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        {isRider && (
-                          <span className="font-mono text-[11px] leading-none text-amber-400" title={`${userStreak}-round ride`}>
+                        {showFlames && (
+                          <span className="font-mono text-[11px] leading-none text-amber-400" title={userStreak === 1 ? "1-round pick" : `${userStreak}-round ride`}>
                             {flames(userStreak)}
                           </span>
                         )}
