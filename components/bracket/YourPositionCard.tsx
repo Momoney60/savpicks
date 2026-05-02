@@ -26,7 +26,7 @@ export default function YourPositionCard({
     [currentUserId, myPicks, series],
   );
 
-  // Tonight = rides whose current series is live or upcoming (not completed)
+  // Active = rides whose current series is live or upcoming (not completed)
   const tonight = useMemo(
     () => rides.filter((r) => r.live_status === "leading" || r.live_status === "trailing" || r.live_status === "tied" || r.live_status === "scheduled"),
     [rides],
@@ -62,7 +62,7 @@ export default function YourPositionCard({
 
       {tonight.length > 0 && (
         <div className="mt-3 space-y-1">
-          <div className="font-mono text-[9px] font-black uppercase tracking-wider text-ink-400">Tonight</div>
+          <div className="font-mono text-[9px] font-black uppercase tracking-wider text-ink-400">In Play</div>
           {tonight.map((r) => {
             const t = teamMap[r.team_id];
             return <RideRow key={r.current_series_id} team={t} streak={r.streak} status={r.live_status} teamWins={r.team_wins} oppWins={r.opp_wins} />;
@@ -89,7 +89,7 @@ function RideRow({ team, streak, status, teamWins, oppWins }: { team: Team | und
     status === "leading" ? `leads ${teamWins}-${oppWins}` :
     status === "trailing" ? `trails ${teamWins}-${oppWins}` :
     status === "tied" ? `tied ${teamWins}-${oppWins}` :
-    status === "scheduled" ? "tonight" :
+    status === "scheduled" ? "not started" :
     `${teamWins}-${oppWins}`;
   const tone =
     status === "leading" ? "border-brand/30 bg-brand/[0.04]" :
