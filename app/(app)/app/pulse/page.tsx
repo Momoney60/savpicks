@@ -15,7 +15,8 @@ export default async function PulsePage() {
 
   const [
     { data: bracketLb },
-    { data: roundPropsLb },
+    { data: roundPropsLbR1 },
+    { data: roundPropsLbR2 },
     { data: activity },
     { data: profile },
     { data: series },
@@ -26,6 +27,7 @@ export default async function PulsePage() {
   ] = await Promise.all([
     supabase.from("bracket_leaderboard").select("*").order("rank").limit(100),
     supabase.rpc("round_prop_leaderboard", { p_round: 1 }),
+    supabase.rpc("round_prop_leaderboard", { p_round: 2 }),
     supabase
       .from("activity_events")
       .select("*, profiles(gamertag, avatar_url)")
@@ -44,7 +46,13 @@ export default async function PulsePage() {
 
   const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
   const myBracket = (bracketLb ?? []).find((r: any) => r.user_id === user!.id);
-  const myProps = (roundPropsLb ?? []).find((r: any) => r.user_id === user!.id);
+  const r1HasProps = (roundPropsLbR1 ?? []).length > 0;
+  const r2HasProps = (roundPropsLbR2 ?? []).length > 0;
+  const myPropsR1 = (roundPropsLbR1 ?? []).find((r: any) => r.user_id === user!.id);
+  const myPropsR2 = (roundPropsLbR2 ?? []).find((r: any) => r.user_id === user!.id);
+  // Show whichever round is more "current": R2 if it has data, else R1
+  const myProps = r2HasProps ? myPropsR2 : myPropsR1;
+  const heroPropsRoundLabel = r2HasProps ? "R2 Props" : "R1 Props";
   const totalPlayers = mappedUsers.length;
 
   const seriesList = (series ?? []) as any[];
@@ -62,7 +70,6 @@ export default async function PulsePage() {
   const todayStr = etDate(new Date());
   const propsList = (props ?? []) as any[];
   const todayProps = propsList.filter((p: any) => p.locks_at && etDate(p.locks_at) === todayStr);
-  // "Last Night" = strictly yesterday in ET, not "anytime in the past"
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = etDate(yesterday);
@@ -86,7 +93,7 @@ export default async function PulsePage() {
       }
     }
   }
-  const enrichedPropsLb = (roundPropsLb ?? []).map((row: any) => {
+  const enrich = (rows: any[] | null) => (rows ?? []).map((row: any) => {
     const total = totalsByUser[row.user_id] ?? 0;
     const hits = hitsByUser[row.user_id] ?? 0;
     return {
@@ -95,6 +102,12 @@ export default async function PulsePage() {
       hit_rate: total > 0 ? Math.round((hits / total) * 100) : null,
     };
   });
+  const enrichedPropsR1 = enrich(roundPropsLbR1);
+  const enrichedPropsR2 = enrich(roundPropsLbR2);
+
+  // R1 is "done" when every R1 series has a winner_id
+  const r1SeriesAll = seriesList.filter((s: any) => s.round === 1);
+  const r1Done = r1SeriesAll.length > 0 && r1SeriesAll.every((s: any) => s.winner_id);
 
 
   return (
@@ -146,7 +159,7 @@ export default async function PulsePage() {
               </span>
             </div>
             <div className="mt-1 font-mono text-[9px] font-bold uppercase tracking-wider text-ink-400">
-              R1 Props
+              {heroPropsRoundLabel}
             </div>
             <div className="text-[10px] text-ink-500">
               {myProps?.points ?? 0} pts
@@ -159,7 +172,9 @@ export default async function PulsePage() {
       <div className="mb-3">
         <LeaderboardSwitcher
           bracket={(bracketLb ?? []) as any}
-          props={enrichedPropsLb as any}
+          propsR1={enrichedPropsR1 as any}
+          propsR2={r2HasProps ? (enrichedPropsR2 as any) : null}
+          r1Done={r1Done}
           currentUserId={user!.id}
         />
       </div>
