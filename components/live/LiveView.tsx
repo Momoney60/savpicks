@@ -152,9 +152,6 @@ function SeriesStakesStrip({
 }
 
 function propMatchesGame(prop: Prop, game: Game): boolean {
-  // Strict match on NHL game_id — the only correct identity.
-  // Old fuzzy team-set match incorrectly merged props across all games of a series
-  // (Game 1 + Game 2 + Game 3... all show same teams, all would match).
   return prop.game_id === game.id;
 }
 
@@ -234,7 +231,6 @@ function GameCell({ game, props, myPicks, allPropPicks, users, currentUserId, se
 
       {!collapsed && (
         <>
-          {/* LiveStatsPanel removed - rink cards now carry stats inline */}
           {props.length > 0 && (
             <>
               <div className="flex items-center justify-between border-t border-ink-700/50 bg-ink-900/40 px-5 py-2.5">
@@ -687,14 +683,31 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
   async function pick(val: string) {
     if (locked) return;
     haptic("medium");
+    const prevSelection = existingPick ? String(existingPick.selection) : null;
     setSelection(val);
-    const res = await fetch("/api/picks/prop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prop_id: prop.id, selection: val }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setSelection(existingPick ? String(existingPick.selection) : null);
-      setErrorMsg(data?.error ?? "Failed");
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/picks/prop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prop_id: prop.id, selection: val }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Revert optimistic state and surface error loudly
+        setSelection(prevSelection);
+        setErrorMsg(data?.error ?? `Pick failed (${res.status}) — tap to retry`);
+        haptic("heavy");
+        // Don't auto-dismiss auth errors — they need explicit re-login
+        if (res.status !== 401) {
+          setTimeout(() => setErrorMsg(null), 6000);
+        }
+      }
+    } catch (e: any) {
+      // Network failure — fetch threw before reaching server
+      setSelection(prevSelection);
+      setErrorMsg("Network error — pick NOT saved. Check your connection and tap again.");
       haptic("heavy");
-      setTimeout(() => setErrorMsg(null), 3500);
     }
   }
 
