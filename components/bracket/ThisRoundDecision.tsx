@@ -53,7 +53,9 @@ export default function ThisRoundDecision({
 
   async function placePick(seriesId: string, teamId: string) {
     haptic("medium");
+    const prevOptimistic = optimistic[seriesId];
     setOptimistic((prev) => ({ ...prev, [seriesId]: teamId }));
+    setToast(null);
     try {
       const res = await fetch("/api/picks/bracket", {
         method: "POST",
@@ -63,26 +65,40 @@ export default function ThisRoundDecision({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         haptic("heavy");
+        // Revert optimistic state to whatever it was before
         setOptimistic((prev) => {
           const next = { ...prev };
-          delete next[seriesId];
+          if (prevOptimistic === undefined) {
+            delete next[seriesId];
+          } else {
+            next[seriesId] = prevOptimistic;
+          }
           return next;
         });
-        setToast({ msg: data?.error ?? `Failed (${res.status})`, ok: false });
-        setTimeout(() => setToast(null), 4000);
+        const msg = data?.error ?? `Pick failed (${res.status})`;
+        setToast({ msg: `${msg} — pick NOT saved`, ok: false });
+        // 401 (auth expired) sits until user dismisses — they need to re-login
+        if (res.status !== 401) {
+          setTimeout(() => setToast(null), 8000);
+        }
         return;
       }
-      setToast({ msg: "Pick saved ✓", ok: true });
-      setTimeout(() => setToast(null), 1500);
-    } catch {
+      setToast({ msg: "Pick saved ✓ — locked in DB", ok: true });
+      setTimeout(() => setToast(null), 2500);
+    } catch (e: any) {
       haptic("heavy");
       setOptimistic((prev) => {
         const next = { ...prev };
-        delete next[seriesId];
+        if (prevOptimistic === undefined) {
+          delete next[seriesId];
+        } else {
+          next[seriesId] = prevOptimistic;
+        }
         return next;
       });
-      setToast({ msg: "Network error — try again", ok: false });
-      setTimeout(() => setToast(null), 4000);
+      setToast({ msg: "Network error — pick NOT saved. Tap again when connection is back.", ok: false });
+      // Network errors sit longer — user needs to know it didn't go through
+      setTimeout(() => setToast(null), 10000);
     }
   }
 
