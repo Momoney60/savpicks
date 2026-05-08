@@ -46,7 +46,7 @@ export default async function LivePage() {
     supabase.from("props").select("*").in("status", ["open", "locked"]).order("locks_at"),
     supabase.from("props").select("*"),
     supabase.from("prop_picks").select("*").eq("user_id", user!.id),
-    supabase.from("prop_picks").select("user_id, prop_id, selection").limit(10000),
+    supabase.from("prop_picks").select("user_id, prop_id, selection").range(0, 9999),
     supabase.from("profiles").select("id, gamertag"),
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id"),
   ]);

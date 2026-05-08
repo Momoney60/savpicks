@@ -41,7 +41,7 @@ export default async function PulsePage() {
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id, is_correct, locked_at"),
     supabase.from("profiles").select("id, gamertag").order("gamertag"),
     supabase.from("props").select("*").order("locks_at"),
-    supabase.from("prop_picks").select("user_id, prop_id, selection, is_correct, awarded_points"),
+    supabase.from("prop_picks").select("user_id, prop_id, selection, is_correct, awarded_points").range(0, 9999),
   ]);
 
   const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
