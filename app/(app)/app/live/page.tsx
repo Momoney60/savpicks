@@ -19,9 +19,7 @@ export default async function LivePage() {
     { data: upcomingSeries },
     { data: allSeries },
     { data: openProps },
-    { data: allProps },
     { data: myPicks },
-    { data: allPropPicks },
     { data: users },
     { data: allBracketPicks },
   ] = await Promise.all([
@@ -44,12 +42,21 @@ export default async function LivePage() {
       .from("series")
       .select("id, team_a_id, team_b_id, wins_a, wins_b, winner_id, status, round"),
     supabase.from("props").select("*").in("status", ["open", "locked"]).order("locks_at"),
-    supabase.from("props").select("*"),
     supabase.from("prop_picks").select("*").eq("user_id", user!.id),
-    supabase.from("prop_picks").select("user_id, prop_id, selection").range(0, 9999),
     supabase.from("profiles").select("id, gamertag"),
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id"),
   ]);
+
+  // Scope props + picks to games actually on screen — keeps queries under any row cap
+  const visibleGameIds = (games ?? []).map((g: any) => g.id);
+  const { data: allProps } = visibleGameIds.length > 0
+    ? await supabase.from("props").select("*").in("game_id", visibleGameIds).order("locks_at")
+    : { data: [] as any[] };
+
+  const visiblePropIds = (allProps ?? []).map((p: any) => p.id);
+  const { data: allPropPicks } = visiblePropIds.length > 0
+    ? await supabase.from("prop_picks").select("user_id, prop_id, selection").in("prop_id", visiblePropIds)
+    : { data: [] as any[] };
 
   const syntheticGames = (upcomingSeries ?? []).map((s: any) => ({
     id: `pending-${s.id}`,
