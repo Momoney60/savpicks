@@ -23,7 +23,6 @@ export default async function PulsePage() {
     { data: picks },
     { data: users },
     { data: props },
-    { data: propPicks },
   ] = await Promise.all([
     supabase.from("bracket_leaderboard").select("*").order("rank").limit(100),
     supabase.rpc("round_prop_leaderboard", { p_round: 1 }),
@@ -41,8 +40,24 @@ export default async function PulsePage() {
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id, is_correct, locked_at"),
     supabase.from("profiles").select("id, gamertag").order("gamertag"),
     supabase.from("props").select("*").order("locks_at"),
-    supabase.from("prop_picks").select("user_id, prop_id, selection, is_correct, awarded_points").range(0, 9999),
   ]);
+
+  // Paginated fetch for prop_picks — Supabase row cap defaults to 1000 per request
+  const propPicks: any[] = [];
+  {
+    let pageFrom = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data: page } = await supabase
+        .from("prop_picks")
+        .select("user_id, prop_id, selection, is_correct, awarded_points")
+        .range(pageFrom, pageFrom + pageSize - 1);
+      if (!page || page.length === 0) break;
+      propPicks.push(...page);
+      if (page.length < pageSize) break;
+      pageFrom += pageSize;
+    }
+  }
 
   const mappedUsers = (users ?? []).map((u: any) => ({ user_id: u.id, gamertag: u.gamertag }));
   const myBracket = (bracketLb ?? []).find((r: any) => r.user_id === user!.id);
