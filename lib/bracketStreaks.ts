@@ -88,20 +88,25 @@ export function streakDepth(
   series: StreakSeries[],
 ): number {
   let streak = 0;
-  for (let r = 1; r <= round; r++) {
+  for (let r = round; r >= 1; r--) {
+    // Find the series in round r where this team plays
     const s = series.find(
-      (s) => s.round === r && (s.team_a_id === teamId || s.team_b_id === teamId),
+      (x) => x.round === r && (x.team_a_id === teamId || x.team_b_id === teamId),
     );
-    if (!s) return 0;
+    if (!s) break; // team doesn't appear in this round → chain ends
 
+    // User must have picked this team for this series
     const pick = picks.find((p) => p.user_id === userId && p.series_id === s.id);
-    if (!pick || pick.picked_team_id !== teamId) return 0;
+    if (!pick || pick.picked_team_id !== teamId) break;
 
-    if (r < round) {
-      if (s.winner_id !== teamId) return 0;
+    // For the cell's round: team must not be eliminated (alive or won)
+    // For prior rounds: team must have won
+    if (r === round) {
+      if (s.winner_id && s.winner_id !== teamId) break;
     } else {
-      if (s.winner_id && s.winner_id !== teamId) return 0;
+      if (s.winner_id !== teamId) break;
     }
+
     streak++;
   }
   return Math.min(streak, FLAME_CAP);
