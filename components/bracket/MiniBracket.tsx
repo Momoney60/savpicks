@@ -74,7 +74,6 @@ export default function MiniBracket({
         status: (s as any).status,
         wins_a: s.wins_a,
         wins_b: s.wins_b,
-        picks_lock_at: (s as any).picks_lock_at ?? null,
       })),
     [series],
   );
@@ -319,25 +318,41 @@ function TeamBlock({
     () => (eliminated ? [] : ridersForCell(team.id, round, picks, streakSeries)),
     [team.id, round, picks, streakSeries, eliminated],
   );
-  const maxStreak = riders.length > 0 ? riders[0].streak : 0;
   const myRide = currentUserId ? riders.find((r) => r.user_id === currentUserId) : undefined;
-  const isMyRide = !!myRide && myRide.streak >= 2;
+  const myStreak = myRide?.streak ?? 0;
+  const isMyRide = myStreak >= 2;
 
-  const borderClass = isMyRide && !eliminated
-    ? "border-amber-400 ring-1 ring-amber-400/40"
-    : picked && !eliminated
-    ? "border-brand"
-    : eliminated
-    ? "border-rink-red bg-rink-red/10"
-    : "border-ink-700/60";
+  // Mutually exclusive states for tinting
+  const isWrongPick = picked && eliminated;
+  const isPickActive = picked && !eliminated;
+  const isPlainElim = eliminated && !picked;
 
-  const stripBg = eliminated
-    ? "bg-rink-red/15"
-    : picked
-    ? "bg-brand/15"
-    : "bg-ink-800";
+  // Gold ring for active rides (>= 2 flames) overrides everything else
+  const borderClass =
+    isMyRide ? "border-amber-400 ring-1 ring-amber-400/40" :
+    isWrongPick ? "border-rink-red" :
+    isPickActive ? "border-brand" :
+    "border-ink-700/60";
 
-  const stripText = eliminated ? "text-rink-red" : picked ? "text-brand" : "text-ink-400";
+  const stripBg =
+    isWrongPick ? "bg-rink-red/15" :
+    isPickActive ? "bg-brand/15" :
+    "bg-ink-800";
+
+  const stripText =
+    isWrongPick ? "text-rink-red" :
+    isPickActive ? "text-brand" :
+    "text-ink-400";
+
+  const logoDim = isPlainElim || isWrongPick ? "opacity-30 grayscale" : "";
+
+  const dotFill = (i: number) => {
+    if (i >= wins) return "bg-ink-700";
+    if (isWrongPick) return "bg-rink-red";
+    if (isPickActive) return "bg-brand";
+    if (isPlainElim) return "bg-ink-600";
+    return "bg-ink-200";
+  };
 
   return (
     <button
@@ -360,13 +375,13 @@ function TeamBlock({
             alt=""
             className={cn(
               "absolute inset-0 h-full w-full scale-[2] object-contain",
-              eliminated && "opacity-30"
+              logoDim,
             )}
           />
         )}
-        {maxStreak > 0 && (
+        {myStreak > 0 && (
           <span className="absolute right-0 top-0 inline-flex items-center rounded-bl-md bg-ink-900/85 px-1 py-[1px] font-mono text-[8px] leading-none text-amber-400 shadow-sm">
-            {flames(maxStreak)}
+            {flames(myStreak)}
           </span>
         )}
       </div>
@@ -375,10 +390,7 @@ function TeamBlock({
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className={cn(
-              "h-1 w-1 rounded-full",
-              i < wins ? (won ? "bg-brand" : eliminated ? "bg-rink-red" : "bg-ink-100") : "bg-ink-700"
-            )}
+            className={cn("h-1 w-1 rounded-full", dotFill(i))}
           />
         ))}
       </div>
