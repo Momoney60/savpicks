@@ -20,6 +20,7 @@ export default function LeaderboardSwitcher({
   currentUserId: string;
 }) {
   const [mode, setMode] = useState<"bracket" | "props">("bracket");
+  // Default to whichever props round is "current" — R2 if it has data, else R1
   const r2HasData = !!propsR2 && propsR2.length > 0;
   const [propsRound, setPropsRound] = useState<1 | 2>(r2HasData ? 2 : 1);
 
@@ -115,9 +116,6 @@ export default function LeaderboardSwitcher({
                       </span>
                       {isMe && <span className="rounded-sm bg-brand/15 px-1 font-mono text-[8px] font-black uppercase tracking-wider text-brand">you</span>}
                       {isR1Champ && <span className="rounded-sm bg-yellow-400/20 px-1 font-mono text-[8px] font-black uppercase tracking-wider text-yellow-400">R1 winner</span>}
-                      {row.max_streak !== undefined && row.max_streak >= 2 && (
-                        <span className="font-mono text-[10px] font-bold text-orange-400">{row.max_streak}x</span>
-                      )}
                     </div>
                     {back > 0 && (
                       <div className="font-mono text-[9px] text-ink-500">-{back} from leader</div>
