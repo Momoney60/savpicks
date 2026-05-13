@@ -6,12 +6,6 @@ export const maxDuration = 60;
 const INGEST_SECRET = process.env.INGEST_SHARED_SECRET;
 const ODDS_API_KEY = process.env.ODDS_API_KEY;
 
-// =============================================================================
-// PROP GENERATOR v4 — Odds API single-player O/U + game winner, deterministic
-// Goal: zero manual intervention. Every game gets 2 props. If Odds API fails
-// or a player can't be matched to a roster, fall back to game-level totals.
-// =============================================================================
-
 type Skater = {
   playerId: number;
   firstName: { default: string };
@@ -229,6 +223,58 @@ function matchOddsEventToGame(events: OddsApiEvent[], home: string, away: string
   return candidates[0] ?? null;
 }
 
+type PropCandidate = {
+  player: string;
+  stat: ParsedPlayerLine["stat"];
+  line: number;
+  books: number;
+  playerCoverage: number;
+};
+
+function buildCandidates(lines: ParsedPlayerLine[]): PropCandidate[] {
+  const players = new Map<string, Map<ParsedPlayerLine["stat"], Map<number, number>>>();
+  for (const l of lines) {
+    if (!players.has(l.player)) players.set(l.player, new Map());
+    const stats = players.get(l.player)!;
+    if (!stats.has(l.stat)) stats.set(l.stat, new Map());
+    const lineCounts = stats.get(l.stat)!;
+    lineCounts.set(l.line, (lineCounts.get(l.line) ?? 0) + 1);
+  }
+
+  const all: PropCandidate[] = [];
+  for (const [player, stats] of players) {
+    let playerCoverage = 0;
+    const playerCands: PropCandidate[] = [];
+    for (const [stat, lineCounts] of stats) {
+      let modeLine = 0;
+      let modeBooks = 0;
+      for (const [line, books] of lineCounts) {
+        if (books > modeBooks) { modeLine = line; modeBooks = books; }
+      }
+      playerCoverage += modeBooks;
+      const valid =
+        (stat === "goals" && modeLine === 0.5) ||
+        (stat === "shots_on_goal" && modeLine >= 1.5 && modeLine <= 4.5) ||
+        (stat === "points" && modeLine >= 0.5 && modeLine <= 2.5);
+      if (valid) playerCands.push({ player, stat, line: modeLine, books: modeBooks, playerCoverage: 0 });
+    }
+    for (const c of playerCands) c.playerCoverage = playerCoverage;
+    all.push(...playerCands);
+  }
+  return all;
+}
+
+function weightedRandom<T extends { books: number }>(items: T[]): T {
+  const total = items.reduce((s, x) => s + x.books, 0);
+  if (total === 0) return items[0];
+  let r = Math.random() * total;
+  for (const x of items) {
+    r -= x.books;
+    if (r <= 0) return x;
+  }
+  return items[items.length - 1];
+}
+
 function pickPlayerProp(
   lines: ParsedPlayerLine[],
   home: TeamClubData,
@@ -240,57 +286,32 @@ function pickPlayerProp(
   player_team: string;
   player_id: number;
   player_headshot: string;
+  debug: { player_coverage: number; books_for_stat: number; total_candidates: number };
 } | null {
-  const statRank: Record<ParsedPlayerLine["stat"], number> = { goals: 0, shots_on_goal: 1, points: 2 };
+  const candidates = buildCandidates(lines);
+  if (candidates.length === 0) return null;
 
-  // For each (player, stat), find the MAIN line — the MODE across bookmakers.
-  // Books often publish an alt line (goals 1.5) alongside the main line (0.5);
-  // mode picks whichever line the most books are quoting.
-  const grouped = new Map<string, { player: string; stat: ParsedPlayerLine["stat"]; lines: number[] }>();
-  for (const l of lines) {
-    const k = `${l.player}|${l.stat}`;
-    const entry = grouped.get(k);
-    if (entry) entry.lines.push(l.line);
-    else grouped.set(k, { player: l.player, stat: l.stat, lines: [l.line] });
-  }
+  candidates.sort((a, b) => b.playerCoverage - a.playerCoverage || b.books - a.books);
 
-  const candidates = Array.from(grouped.values())
-    .map((g) => {
-      const counts = new Map<number, number>();
-      for (const x of g.lines) counts.set(x, (counts.get(x) ?? 0) + 1);
-      let mode = g.lines[0];
-      let modeCount = 0;
-      for (const [val, c] of counts) {
-        if (c > modeCount) {
-          mode = val;
-          modeCount = c;
-        }
-      }
-      return { player: g.player, stat: g.stat, line: mode, books: modeCount };
-    })
-    .filter((c) => {
-      if (c.stat === "goals") return c.line === 0.5;
-      if (c.stat === "shots_on_goal") return c.line >= 1.5 && c.line <= 4.5;
-      if (c.stat === "points") return c.line >= 0.5 && c.line <= 2.5;
-      return false;
-    })
-    .sort((a, b) => {
-      const r = statRank[a.stat] - statRank[b.stat];
-      if (r !== 0) return r;
-      return b.books - a.books;
-    });
+  const top = candidates.slice(0, Math.min(8, candidates.length));
 
-  for (const c of candidates) {
-    const match = findSkaterByName(c.player, home, away);
-    if (!match) continue;
-    return {
-      stat: c.stat,
-      line: c.line,
-      player_name: `${match.player.firstName?.default ?? ""} ${match.player.lastName?.default ?? ""}`.trim(),
-      player_team: match.team.abbrev,
-      player_id: match.player.playerId,
-      player_headshot: headshotUrl(match.player.playerId, match.team.abbrev),
-    };
+  const pool = [...top];
+  while (pool.length > 0) {
+    const chosen = weightedRandom(pool);
+    const match = findSkaterByName(chosen.player, home, away);
+    if (match) {
+      return {
+        stat: chosen.stat,
+        line: chosen.line,
+        player_name: `${match.player.firstName?.default ?? ""} ${match.player.lastName?.default ?? ""}`.trim(),
+        player_team: match.team.abbrev,
+        player_id: match.player.playerId,
+        player_headshot: headshotUrl(match.player.playerId, match.team.abbrev),
+        debug: { player_coverage: chosen.playerCoverage, books_for_stat: chosen.books, total_candidates: candidates.length },
+      };
+    }
+    const idx = pool.indexOf(chosen);
+    pool.splice(idx, 1);
   }
   return null;
 }
@@ -301,13 +322,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { date?: string };
+  let body: { date?: string; dry_run?: boolean };
   try {
     body = await request.json();
   } catch {
     body = {};
   }
   const dateParam = body.date ?? new Date().toISOString().slice(0, 10);
+  const dryRun = body.dry_run === true;
 
   const schedRes = await fetch(`https://api-web.nhle.com/v1/schedule/${dateParam}`);
   if (!schedRes.ok) {
@@ -332,40 +354,42 @@ export async function POST(request: Request) {
     const gameLabel = `${away} @ ${home}`;
     const lockTime = g.startTimeUTC;
 
-    const { data: existing } = await supabase
-      .from("props")
-      .select("id")
-      .eq("game_id", gameId)
-      .limit(1);
-    if (existing && existing.length > 0) {
-      results.push({ game: gameLabel, gameId, status: "skipped (props exist)" });
-      continue;
+    if (!dryRun) {
+      const { data: existing } = await supabase
+        .from("props")
+        .select("id")
+        .eq("game_id", gameId)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        results.push({ game: gameLabel, gameId, status: "skipped (props exist)" });
+        continue;
+      }
+
+      const { data: seriesRow } = await supabase
+        .from("series")
+        .select("id, wins_a, wins_b, team_a_id, team_b_id")
+        .or(`and(team_a_id.eq.${home},team_b_id.eq.${away}),and(team_a_id.eq.${away},team_b_id.eq.${home})`)
+        .maybeSingle();
+      const seriesId = seriesRow?.id ?? null;
+
+      await supabase.from("games").upsert(
+        {
+          id: gameId,
+          status: "scheduled",
+          home_team_id: home,
+          away_team_id: away,
+          home_score: 0,
+          away_score: 0,
+          period: null,
+          clock: null,
+          scheduled_at: lockTime,
+          series_id: seriesId,
+          player_stats: [],
+          total_pim: 0,
+        },
+        { onConflict: "id" }
+      );
     }
-
-    const { data: seriesRow } = await supabase
-      .from("series")
-      .select("id, wins_a, wins_b, team_a_id, team_b_id")
-      .or(`and(team_a_id.eq.${home},team_b_id.eq.${away}),and(team_a_id.eq.${away},team_b_id.eq.${home})`)
-      .maybeSingle();
-    const seriesId = seriesRow?.id ?? null;
-
-    await supabase.from("games").upsert(
-      {
-        id: gameId,
-        status: "scheduled",
-        home_team_id: home,
-        away_team_id: away,
-        home_score: 0,
-        away_score: 0,
-        period: null,
-        clock: null,
-        scheduled_at: lockTime,
-        series_id: seriesId,
-        player_stats: [],
-        total_pim: 0,
-      },
-      { onConflict: "id" }
-    );
 
     const [homeData, awayData] = await Promise.all([fetchClubData(home), fetchClubData(away)]);
 
@@ -373,12 +397,30 @@ export async function POST(request: Request) {
     const descriptions: string[] = [];
 
     let playerOuBuilt = false;
+    let debugInfo: any = null;
     if (oddsAvailable && homeData && awayData) {
       const event = matchOddsEventToGame(oddsEvents, home, away, lockTime);
       if (event) {
         const lines = await fetchOddsApiPlayerProps(event.id);
         if (lines.length > 0) {
           const pick = pickPlayerProp(lines, homeData, awayData);
+          if (dryRun) {
+            const allCands = buildCandidates(lines)
+              .sort((a, b) => b.playerCoverage - a.playerCoverage || b.books - a.books)
+              .slice(0, 15);
+            debugInfo = {
+              event_id: event.id,
+              raw_lines_count: lines.length,
+              top_candidates: allCands.map((c) => ({
+                player: c.player,
+                stat: c.stat,
+                line: c.line,
+                books_for_this_stat: c.books,
+                total_player_coverage: c.playerCoverage,
+              })),
+              chosen: pick ? { player: pick.player_name, stat: pick.stat, line: pick.line, debug: pick.debug } : null,
+            };
+          }
           if (pick) {
             propsToInsert.push({
               prop_type: "player_ou",
@@ -401,7 +443,11 @@ export async function POST(request: Request) {
             descriptions.push(`Player O/U: ${pick.player_name} ${pick.stat} ${pick.line}`);
             playerOuBuilt = true;
           }
+        } else if (dryRun) {
+          debugInfo = { event_id: event.id, raw_lines_count: 0, note: "Odds API returned no player markets for this event" };
         }
+      } else if (dryRun) {
+        debugInfo = { note: `No Odds API event matched ${away} @ ${home}` };
       }
     }
 
@@ -439,6 +485,17 @@ export async function POST(request: Request) {
     });
     descriptions.push("Game winner");
 
+    if (dryRun) {
+      results.push({
+        game: gameLabel,
+        gameId,
+        status: "dry_run",
+        props: descriptions,
+        debug: debugInfo,
+      });
+      continue;
+    }
+
     const { error: insertError } = await supabase.from("props").insert(propsToInsert);
     if (insertError) {
       results.push({ game: gameLabel, status: "error", error: insertError.message });
@@ -447,5 +504,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, date: dateParam, oddsAvailable, results });
+  return NextResponse.json({ ok: true, date: dateParam, oddsAvailable, dryRun, results });
 }
