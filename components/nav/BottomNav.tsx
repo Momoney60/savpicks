@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Activity, Trophy, Zap, BookOpen } from "lucide-react";
+import { Zap, Trophy, Activity, BookOpen } from "lucide-react";
 import { cn, haptic } from "@/lib/utils";
 
+// Props is the default landing tab — leftmost so it reads as "home"
 const tabs = [
-  { href: "/app/pulse", label: "Pulse", icon: Activity },
+  { href: "/app/live", label: "Props", icon: Zap },
   { href: "/app/bracket", label: "Bracket", icon: Trophy },
-  { href: "/app/live", label: "Live", icon: Zap },
+  { href: "/app/pulse", label: "Standings", icon: Activity },
   { href: "/app/rules", label: "Rules", icon: BookOpen },
 ] as const;
 
@@ -17,7 +18,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900/90 backdrop-blur-xl pb-safe">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900/95 backdrop-blur-xl pb-safe">
       <div className="mx-auto flex max-w-md items-stretch justify-around px-2">
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.href);
@@ -29,6 +30,13 @@ export default function BottomNav() {
               onClick={() => haptic("light")}
               className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
             >
+              {active && (
+                <motion.div
+                  layoutId="nav-pill"
+                  className="absolute inset-x-2 inset-y-1 -z-10 rounded-xl bg-brand/10"
+                  transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                />
+              )}
               {active && (
                 <motion.div
                   layoutId="nav-indicator"

@@ -38,7 +38,7 @@ async function saveGamertag(formData: FormData) {
     .eq("id", user.id);
 
   revalidatePath("/", "layout");
-  redirect("/app/pulse");
+  redirect("/app/live");
 }
 
 export default async function OnboardingPage() {
@@ -55,7 +55,7 @@ export default async function OnboardingPage() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.has_set_gamertag) redirect("/app/pulse");
+  if (profile?.has_set_gamertag) redirect("/app/live");
 
   return (
     <main className="mx-auto max-w-md px-6 pt-safe">

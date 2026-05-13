@@ -12,7 +12,7 @@ export default async function LandingPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) redirect("/app/pulse");
+  if (user) redirect("/app/live");
 
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-ink-900 pt-safe">

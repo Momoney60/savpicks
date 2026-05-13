@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { currentPickRound, type StreakPick, type StreakSeries } from "@/lib/bracketStreaks";
 import YourPositionCard from "./YourPositionCard";
 import ThisRoundDecision from "./ThisRoundDecision";
-import YourJourneyCard from "./YourJourneyCard";
 import LeaguePulseCard from "./LeaguePulseCard";
 
 type Team = { id: string; short_name: string; full_name?: string; logo_url: string | null; primary_color: string | null; is_eliminated?: boolean };
@@ -75,14 +74,6 @@ export default function BracketView({
         series={series}
         myPicks={myStreakPicks}
         allBracketPicks={allBracketPicks}
-      />
-
-      <YourJourneyCard
-        currentUserId={currentUserId}
-        myPicks={myStreakPicks}
-        series={series}
-        teams={teams}
-        awarded={awardedRows}
       />
 
       <LeaguePulseCard

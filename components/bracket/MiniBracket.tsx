@@ -210,18 +210,30 @@ function CupColumn({
   onTeamTap: (teamId: string | null | undefined, label: string, round: number) => void;
   currentUserId?: string;
 }) {
+  const scfSet = !!(scf && scf.team_a && scf.team_b);
   return (
     <div className="flex flex-col">
       <div className="mb-1 text-center font-mono text-[8px] font-black uppercase tracking-widest text-brand">Cup</div>
       <div className="flex flex-1 items-center justify-center">
-        <div className="w-full rounded-md border-2 border-brand/40 bg-gradient-to-b from-brand/10 to-transparent p-1">
-          <div className="text-center font-display text-[7px] font-black uppercase leading-tight tracking-widest text-brand">
-            Cup
+        {scfSet ? (
+          <div className="w-full rounded-md border-2 border-brand/40 bg-gradient-to-b from-brand/10 to-transparent p-1">
+            <div className="text-center font-display text-[7px] font-black uppercase leading-tight tracking-widest text-brand">Cup</div>
+            <div className="mt-0.5">
+              <MatchupCell series={scf!} myPick={myPick(scf!.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} />
+            </div>
           </div>
-          <div className="mt-0.5">
-            {scf ? <MatchupCell series={scf} myPick={myPick(scf.id)} picks={picks} streakSeries={streakSeries} onTeamTap={onTeamTap} currentUserId={currentUserId} /> : <EmptyCell />}
+        ) : (
+          <div className="relative flex w-full flex-col items-center justify-center py-2">
+            <img
+              src="/stanley-cup.png"
+              alt="Stanley Cup"
+              className="h-20 w-auto object-contain opacity-90 drop-shadow-[0_0_8px_rgba(125,211,252,0.25)]"
+            />
+            <div className="mt-1 text-center font-mono text-[7px] font-black uppercase tracking-[0.2em] text-brand">
+              Stanley Cup
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -326,9 +338,6 @@ function TeamBlock({
   const isLivePick = picked && !eliminated && !won;
   const isPlainElim = eliminated && !picked;
 
-  // Layered amber/orange box-shadows = ember glow.
-  // Tier 1 (fresh pick, 1 flame): soft amber halo.
-  // Tier 2 (active ride, 2+ flames): deeper amber > orange > red. Burning.
   const liveGlow = isLivePick
     ? myStreak >= 2
       ? "border-amber-400/70 shadow-[0_0_10px_#fbbf2499,0_0_20px_#fb923c66,0_0_30px_#ef44443d]"

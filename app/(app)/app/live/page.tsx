@@ -87,8 +87,8 @@ export default async function LivePage() {
           <span className="h-1.5 w-1.5 rounded-full bg-live live-dot" />
           Live
         </p>
-        <h1 className="font-display text-2xl font-black tracking-tight">Tonight&apos;s Action</h1>
-        <p className="mt-1 text-sm text-ink-400">Live scores · Pregame markets · Resolved games</p>
+        <h1 className="font-display text-2xl font-black tracking-tight">Tonight&apos;s Props</h1>
+        <p className="mt-1 text-sm text-ink-400">Game scores · Pregame markets · Pool action</p>
       </header>
 
       <LiveView

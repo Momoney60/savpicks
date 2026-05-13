@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <AdminLink href="/admin/series">Series</AdminLink>
             <AdminLink href="/admin/props">Props</AdminLink>
             <AdminLink href="/admin/adjustments">Adjustments</AdminLink>
-            <Link href="/app/pulse" className="ml-4 rounded-lg bg-ink-800 px-3 py-1.5 text-ink-300 hover:bg-ink-700">
+            <Link href="/app/live" className="ml-4 rounded-lg bg-ink-800 px-3 py-1.5 text-ink-300 hover:bg-ink-700">
               ← App
             </Link>
           </nav>
