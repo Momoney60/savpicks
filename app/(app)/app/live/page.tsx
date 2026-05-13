@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import LiveView from "@/components/live/LiveView";
+import TonightLockStatus from "@/components/live/TonightLockStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,6 @@ export default async function LivePage() {
     supabase.from("bracket_picks").select("user_id, series_id, picked_team_id"),
   ]);
 
-  // Scope props + picks to games actually on screen — keeps queries under any row cap
   const visibleGameIds = (games ?? []).map((g: any) => g.id);
   const { data: allProps } = visibleGameIds.length > 0
     ? await supabase.from("props").select("*").in("game_id", visibleGameIds).order("locks_at")
@@ -90,6 +90,13 @@ export default async function LivePage() {
         <h1 className="font-display text-2xl font-black tracking-tight">Tonight&apos;s Props</h1>
         <p className="mt-1 text-sm text-ink-400">Game scores · Pregame markets · Pool action</p>
       </header>
+
+      <TonightLockStatus
+        props={(allProps ?? []) as any}
+        picks={(allPropPicks ?? []) as any}
+        users={mappedUsers}
+        currentUserId={user!.id}
+      />
 
       <LiveView
         games={combined as any}
