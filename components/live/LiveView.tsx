@@ -33,6 +33,7 @@ type Prop = {
   points_reward: number;
   locks_at: string | null;
   metadata: any;
+  outcome?: any;
 };
 
 type PropPick = { id?: string; user_id?: string; prop_id: string; selection: any; is_correct?: boolean | null };
@@ -798,7 +799,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
     const bPts = outcome.player_b_value ?? outcome.player_b_pts ?? 0;
     const winner = outcome.winner;
     const isTie = winner === "tie";
-    const sLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : outcome.stat === "shots" ? "sog" : outcome.stat === "goals" ? "g" : outcome.stat === "assists" ? "a" : "pts";
+    const statLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : "pts";
 
     return (
       <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
@@ -818,7 +819,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             </div>
             <div className="mt-0.5 flex items-baseline gap-1">
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "a" ? "text-brand" : "text-ink-400")}>{aPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">{sLabel}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
               {winner === "a" && <span className="ml-1 text-[12px]">🏆</span>}
             </div>
           </div>
@@ -831,7 +832,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             <div className="mt-0.5 flex items-baseline justify-end gap-1">
               {winner === "b" && <span className="mr-1 text-[12px]">🏆</span>}
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "b" ? "text-brand" : "text-ink-400")}>{bPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">{sLabel}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
             </div>
           </div>
         </div>

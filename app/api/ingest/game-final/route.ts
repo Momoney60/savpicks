@@ -12,6 +12,7 @@ type PlayerStat = {
   assists: number;
   points: number;
   pim: number;
+  sog?: number;
 };
 
 type GoalieStat = {
