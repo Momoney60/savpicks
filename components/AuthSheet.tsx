@@ -69,7 +69,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
 
   async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!code || code.length !== 6) return;
+    if (!code || code.length < 6) return;
     setLoading(true);
     clearMessages();
     haptic("medium");
@@ -167,7 +167,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                       Sign in.
                     </h2>
                     <p className="mt-1 text-sm text-ink-400">
-                      Have a password? Use it. First time? Get a 6-digit code by email.
+                      Have a password? Use it. First time? Get a code by email.
                     </p>
 
                     <form onSubmit={signIn} className="mt-6 space-y-3">
@@ -240,12 +240,12 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         pattern="[0-9]*"
-                        maxLength={6}
+                        maxLength={10}
                         required
                         value={code}
                         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                        placeholder="6-digit code"
-                        className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-4 text-center font-mono text-[24px] font-bold tracking-[0.4em] text-ink-100 placeholder:text-ink-600 placeholder:tracking-normal focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                        placeholder="Code from email"
+                        className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-4 text-center font-mono text-[22px] font-bold tracking-[0.3em] text-ink-100 placeholder:text-ink-600 placeholder:tracking-normal placeholder:text-[15px] focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                       />
 
                       {error && (
@@ -256,7 +256,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
 
                       <button
                         type="submit"
-                        disabled={loading || code.length !== 6}
+                        disabled={loading || code.length < 6}
                         className="w-full rounded-xl bg-brand py-4 font-display text-[17px] font-bold text-ink-900 shadow-glow transition disabled:opacity-50 active:scale-[0.98]"
                       >
                         {loading ? "Verifying..." : "Sign in"}
