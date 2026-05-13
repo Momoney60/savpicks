@@ -183,6 +183,7 @@ async function fetchOddsApiPlayerProps(eventId: string): Promise<ParsedPlayerLin
     const out: ParsedPlayerLine[] = [];
     const seen = new Set<string>();
     for (const bm of data.bookmakers ?? []) {
+      const bmKey = bm.key ?? "";
       for (const m of bm.markets ?? []) {
         let stat: ParsedPlayerLine["stat"] | null = null;
         if (m.key === "player_goals") stat = "goals";
@@ -195,7 +196,7 @@ async function fetchOddsApiPlayerProps(eventId: string): Promise<ParsedPlayerLin
           const player = isSide ? o.description : o.name;
           const point = typeof o.point === "number" ? o.point : parseFloat(o.point ?? "");
           if (!player || !Number.isFinite(point)) continue;
-          const key = `${player}|${stat}|${point}`;
+          const key = `${bmKey}|${player}|${stat}|${point}`;
           if (seen.has(key)) continue;
           seen.add(key);
           out.push({ player, stat, line: point });
@@ -242,6 +243,9 @@ function pickPlayerProp(
 } | null {
   const statRank: Record<ParsedPlayerLine["stat"], number> = { goals: 0, shots_on_goal: 1, points: 2 };
 
+  // For each (player, stat), find the MAIN line — the MODE across bookmakers.
+  // Books often publish an alt line (goals 1.5) alongside the main line (0.5);
+  // mode picks whichever line the most books are quoting.
   const grouped = new Map<string, { player: string; stat: ParsedPlayerLine["stat"]; lines: number[] }>();
   for (const l of lines) {
     const k = `${l.player}|${l.stat}`;
@@ -252,17 +256,29 @@ function pickPlayerProp(
 
   const candidates = Array.from(grouped.values())
     .map((g) => {
-      const sorted = [...g.lines].sort((a, b) => a - b);
-      const median = sorted[Math.floor(sorted.length / 2)];
-      return { player: g.player, stat: g.stat, line: median };
+      const counts = new Map<number, number>();
+      for (const x of g.lines) counts.set(x, (counts.get(x) ?? 0) + 1);
+      let mode = g.lines[0];
+      let modeCount = 0;
+      for (const [val, c] of counts) {
+        if (c > modeCount) {
+          mode = val;
+          modeCount = c;
+        }
+      }
+      return { player: g.player, stat: g.stat, line: mode, books: modeCount };
     })
     .filter((c) => {
-      if (c.stat === "goals") return c.line === 0.5 || c.line === 1.5;
+      if (c.stat === "goals") return c.line === 0.5;
       if (c.stat === "shots_on_goal") return c.line >= 1.5 && c.line <= 4.5;
       if (c.stat === "points") return c.line >= 0.5 && c.line <= 2.5;
       return false;
     })
-    .sort((a, b) => statRank[a.stat] - statRank[b.stat]);
+    .sort((a, b) => {
+      const r = statRank[a.stat] - statRank[b.stat];
+      if (r !== 0) return r;
+      return b.books - a.books;
+    });
 
   for (const c of candidates) {
     const match = findSkaterByName(c.player, home, away);
