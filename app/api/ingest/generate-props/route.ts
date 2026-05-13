@@ -275,11 +275,8 @@ function weightedRandom<T extends { books: number }>(items: T[]): T {
   return items[items.length - 1];
 }
 
-function pickPlayerProp(
-  lines: ParsedPlayerLine[],
-  home: TeamClubData,
-  away: TeamClubData,
-): {
+type SoloPick = {
+  kind: "solo";
   stat: ParsedPlayerLine["stat"];
   line: number;
   player_name: string;
@@ -287,20 +284,89 @@ function pickPlayerProp(
   player_id: number;
   player_headshot: string;
   debug: { player_coverage: number; books_for_stat: number; total_candidates: number };
-} | null {
+};
+
+type H2HPick = {
+  kind: "h2h";
+  stat: "shots" | "points";
+  line: number;
+  player_a_name: string; player_a_team: string; player_a_id: number; player_a_headshot: string;
+  player_b_name: string; player_b_team: string; player_b_id: number; player_b_headshot: string;
+  debug: { pair_coverage: number; pair_books: number; h2h_pairs: number };
+};
+
+function pickPlayerProp(
+  lines: ParsedPlayerLine[],
+  home: TeamClubData,
+  away: TeamClubData,
+): SoloPick | H2HPick | null {
   const candidates = buildCandidates(lines);
   if (candidates.length === 0) return null;
 
-  candidates.sort((a, b) => b.playerCoverage - a.playerCoverage || b.books - a.books);
+  type Tagged = PropCandidate & { teamAbbrev: string; nhlPlayerId: number; headshot: string; resolvedName: string };
+  const tagged: Tagged[] = [];
+  for (const c of candidates) {
+    const match = findSkaterByName(c.player, home, away);
+    if (!match) continue;
+    tagged.push({
+      ...c,
+      teamAbbrev: match.team.abbrev,
+      nhlPlayerId: match.player.playerId,
+      headshot: headshotUrl(match.player.playerId, match.team.abbrev),
+      resolvedName: `${match.player.firstName?.default ?? ""} ${match.player.lastName?.default ?? ""}`.trim(),
+    });
+  }
 
-  const top = candidates.slice(0, Math.min(8, candidates.length));
+  // H2H pass: pairs (one player per team) with SAME stat + SAME line. Skip goals.
+  const homeCands = tagged.filter((c) => c.teamAbbrev === home.abbrev);
+  const awayCands = tagged.filter((c) => c.teamAbbrev === away.abbrev);
+  type Pair = { home: Tagged; away: Tagged; weight: number; coverage: number };
+  const pairs: Pair[] = [];
+  for (const h of homeCands) {
+    if (h.stat === "goals") continue;
+    for (const a of awayCands) {
+      if (a.stat !== h.stat) continue;
+      if (a.line !== h.line) continue;
+      pairs.push({
+        home: h,
+        away: a,
+        weight: h.books + a.books,
+        coverage: h.playerCoverage + a.playerCoverage,
+      });
+    }
+  }
 
-  const pool = [...top];
-  while (pool.length > 0) {
+  if (pairs.length > 0) {
+    pairs.sort((x, y) => y.coverage - x.coverage || y.weight - x.weight);
+    const topPairs = pairs.slice(0, Math.min(5, pairs.length));
+    const pool = topPairs.map((p) => ({ ...p, books: p.weight }));
     const chosen = weightedRandom(pool);
+    return {
+      kind: "h2h",
+      stat: chosen.home.stat === "shots_on_goal" ? "shots" : "points",
+      line: chosen.home.line,
+      player_a_name: chosen.away.resolvedName,
+      player_a_team: chosen.away.teamAbbrev,
+      player_a_id: chosen.away.nhlPlayerId,
+      player_a_headshot: chosen.away.headshot,
+      player_b_name: chosen.home.resolvedName,
+      player_b_team: chosen.home.teamAbbrev,
+      player_b_id: chosen.home.nhlPlayerId,
+      player_b_headshot: chosen.home.headshot,
+      debug: { pair_coverage: chosen.coverage, pair_books: chosen.weight, h2h_pairs: pairs.length },
+    };
+  }
+
+  // Solo fallback
+  candidates.sort((a, b) => b.playerCoverage - a.playerCoverage || b.books - a.books);
+  const top = candidates.slice(0, Math.min(8, candidates.length));
+  const soloPool = [...top];
+  while (soloPool.length > 0) {
+    const chosen = weightedRandom(soloPool);
     const match = findSkaterByName(chosen.player, home, away);
     if (match) {
       return {
+        kind: "solo",
         stat: chosen.stat,
         line: chosen.line,
         player_name: `${match.player.firstName?.default ?? ""} ${match.player.lastName?.default ?? ""}`.trim(),
@@ -310,8 +376,8 @@ function pickPlayerProp(
         debug: { player_coverage: chosen.playerCoverage, books_for_stat: chosen.books, total_candidates: candidates.length },
       };
     }
-    const idx = pool.indexOf(chosen);
-    pool.splice(idx, 1);
+    const idx = soloPool.indexOf(chosen);
+    soloPool.splice(idx, 1);
   }
   return null;
 }
@@ -418,10 +484,14 @@ export async function POST(request: Request) {
                 books_for_this_stat: c.books,
                 total_player_coverage: c.playerCoverage,
               })),
-              chosen: pick ? { player: pick.player_name, stat: pick.stat, line: pick.line, debug: pick.debug } : null,
+              chosen: pick
+                ? pick.kind === "solo"
+                  ? { kind: "solo", player: pick.player_name, stat: pick.stat, line: pick.line, debug: pick.debug }
+                  : { kind: "h2h", away: pick.player_a_name, home: pick.player_b_name, stat: pick.stat, line: pick.line, debug: pick.debug }
+                : null,
             };
           }
-          if (pick) {
+          if (pick && pick.kind === "solo") {
             propsToInsert.push({
               prop_type: "player_ou",
               status: "open",
@@ -441,6 +511,31 @@ export async function POST(request: Request) {
               },
             });
             descriptions.push(`Player O/U: ${pick.player_name} ${pick.stat} ${pick.line}`);
+            playerOuBuilt = true;
+          } else if (pick && pick.kind === "h2h") {
+            propsToInsert.push({
+              prop_type: "h2h_player",
+              status: "open",
+              points_reward: 5,
+              game_id: gameId,
+              locks_at: lockTime,
+              metadata: {
+                stat: pick.stat,
+                game_label: gameLabel,
+                home_team: home,
+                away_team: away,
+                line: String(pick.line),
+                player_a_name: pick.player_a_name,
+                player_a_team: pick.player_a_team,
+                player_a_id: pick.player_a_id,
+                player_a_headshot: pick.player_a_headshot,
+                player_b_name: pick.player_b_name,
+                player_b_team: pick.player_b_team,
+                player_b_id: pick.player_b_id,
+                player_b_headshot: pick.player_b_headshot,
+              },
+            });
+            descriptions.push(`H2H ${pick.stat}: ${pick.player_a_name} vs ${pick.player_b_name} (line ${pick.line})`);
             playerOuBuilt = true;
           }
         } else if (dryRun) {
