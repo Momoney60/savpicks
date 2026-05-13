@@ -2,15 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
-import { Zap, Trophy, Activity, BookOpen } from "lucide-react";
+import { Zap, Trophy, Medal, BookOpen } from "lucide-react";
 import { cn, haptic } from "@/lib/utils";
 
-// Props is the default landing tab — leftmost so it reads as "home"
 const tabs = [
   { href: "/app/live", label: "Props", icon: Zap },
   { href: "/app/bracket", label: "Bracket", icon: Trophy },
-  { href: "/app/pulse", label: "Standings", icon: Activity },
+  { href: "/app/pulse", label: "Standings", icon: Medal },
   { href: "/app/rules", label: "Rules", icon: BookOpen },
 ] as const;
 
@@ -18,7 +16,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700 bg-ink-900/95 backdrop-blur-xl pb-safe">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-ink-700/60 bg-ink-900/95 backdrop-blur-xl pb-safe">
       <div className="mx-auto flex max-w-md items-stretch justify-around px-2">
         {tabs.map((tab) => {
           const active = pathname.startsWith(tab.href);
@@ -28,33 +26,19 @@ export default function BottomNav() {
               key={tab.href}
               href={tab.href}
               onClick={() => haptic("light")}
-              className="relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5"
+              className="flex flex-1 flex-col items-center justify-center gap-1 py-2.5"
             >
-              {active && (
-                <motion.div
-                  layoutId="nav-pill"
-                  className="absolute inset-x-2 inset-y-1 -z-10 rounded-xl bg-brand/10"
-                  transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                />
-              )}
-              {active && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand"
-                  transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                />
-              )}
               <Icon
                 className={cn(
-                  "h-5 w-5 transition-colors",
-                  active ? "text-brand" : "text-ink-400"
+                  "h-[22px] w-[22px] transition-colors",
+                  active ? "text-brand" : "text-ink-500"
                 )}
-                strokeWidth={active ? 2.5 : 2}
+                strokeWidth={active ? 2.4 : 1.9}
               />
               <span
                 className={cn(
                   "text-[10px] font-semibold tracking-wide transition-colors",
-                  active ? "text-brand" : "text-ink-400"
+                  active ? "text-brand" : "text-ink-500"
                 )}
               >
                 {tab.label}

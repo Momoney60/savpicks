@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn, haptic } from "@/lib/utils";
 import {
   ridersForCell,
-  farthestPickRound,
   flames,
   roundShortLabel,
   type StreakSeries,
   type StreakPick,
 } from "@/lib/bracketStreaks";
+import StanleyCupSVG from "@/components/StanleyCupSVG";
+import SeriesVoteBar, { type VoteSeries } from "@/components/bracket/SeriesVoteBar";
 
 type Team = { id: string; short_name?: string; logo_url: string | null };
 type Series = {
@@ -224,11 +225,7 @@ function CupColumn({
           </div>
         ) : (
           <div className="relative flex w-full flex-col items-center justify-center py-2">
-            <img
-              src="/stanley-cup.png"
-              alt="Stanley Cup"
-              className="h-20 w-auto object-contain opacity-90 drop-shadow-[0_0_8px_rgba(125,211,252,0.25)]"
-            />
+            <StanleyCupSVG className="h-20 w-auto drop-shadow-[0_0_10px_rgba(125,211,252,0.3)]" />
             <div className="mt-1 text-center font-mono text-[7px] font-black uppercase tracking-[0.2em] text-brand">
               Stanley Cup
             </div>
@@ -442,7 +439,7 @@ function OnTheRideDrawer({
   );
 
   const cellSeries = useMemo(
-    () => series.find((s) => s.round === round && (s.team_a_id === teamId || s.team_b_id === teamId)),
+    () => series.find((s) => s.round === round && (s.team_a_id === teamId || s.team_b_id === teamId)) as VoteSeries | undefined,
     [series, teamId, round],
   );
   const isLocked = useMemo(() => {
@@ -451,23 +448,9 @@ function OnTheRideDrawer({
     if (!cellSeries.picks_lock_at) return false;
     return new Date(cellSeries.picks_lock_at).getTime() <= Date.now();
   }, [cellSeries]);
-  const lockMessage = useMemo(() => {
-    if (isLocked || !cellSeries?.picks_lock_at) return null;
-    return new Date(cellSeries.picks_lock_at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
-  }, [isLocked, cellSeries]);
 
-  const riders = useMemo(() => {
-    const base = ridersForCell(teamId, round, picks, series);
-    return base.map((r) => {
-      const farthest = farthestPickRound(r.user_id, teamId, picks, series);
-      return { ...r, farthestRound: farthest };
-    });
-  }, [teamId, round, picks, series]);
-
-  const visibleRiders = useMemo(
-    () => (isLocked ? riders : riders.filter((r) => r.user_id === currentUserId)),
-    [isLocked, riders, currentUserId],
-  );
+  const riders = useMemo(() => ridersForCell(teamId, round, picks, series), [teamId, round, picks, series]);
+  const visibleRiders = isLocked ? riders : riders.filter((r) => r.user_id === currentUserId);
   const hiddenCount = isLocked ? 0 : Math.max(0, riders.length - visibleRiders.length);
 
   return (
@@ -476,83 +459,85 @@ function OnTheRideDrawer({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 backdrop-blur-md"
     >
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ type: "spring", damping: 28, stiffness: 360 }}
         onClick={(e) => e.stopPropagation()}
-        className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-ink-700 bg-ink-850 p-6 pb-10 shadow-tier-4"
+        className="w-full max-w-sm overflow-hidden rounded-2xl border border-ink-700/70 bg-ink-850 shadow-tier-4"
       >
-        <div className="mx-auto mb-5 h-1 w-12 rounded-full bg-ink-600" />
-        <div className="mb-5">
-          <p className="font-mono text-[10px] font-black uppercase tracking-[0.25em] text-brand">On the Ride</p>
-          <h2 className="mt-1 font-display text-[22px] font-black leading-tight tracking-tight text-ink-100">{teamLabel}</h2>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-            {isLocked
-              ? `${riders.length} ${riders.length === 1 ? "rider" : "riders"} · ${roundShortLabel(round)}`
-              : lockMessage
-              ? `Locks ${lockMessage} · reveals at lock`
-              : `Reveals at lock · ${roundShortLabel(round)}`}
-          </p>
+        <div className="flex items-center justify-between border-b border-ink-700/50 bg-ink-900/40 px-4 py-2.5">
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.25em] text-brand">{teamLabel}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-ink-400 transition hover:bg-ink-800 hover:text-ink-200 active:scale-90"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
-        {visibleRiders.length === 0 && hiddenCount === 0 ? (
-          <div className="rounded-xl border border-ink-700 bg-ink-900/60 px-4 py-8 text-center text-[12px] text-ink-500">
-            {isLocked
-              ? <>Nobody&apos;s riding {teamLabel} alive in {roundShortLabel(round)}.</>
-              : <>Picks reveal at lock.</>}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {visibleRiders.map((r) => {
-              const name = userMap[r.user_id] ?? "?";
-              const isMe = r.user_id === currentUserId;
-              const through = roundShortLabel(r.farthestRound);
-              return (
-                <div
-                  key={r.user_id}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border bg-ink-900/60 px-3 py-2.5",
-                    r.streak >= 2 ? "border-amber-400/50 bg-amber-400/[0.04]" : isMe ? "border-brand/50" : "border-ink-700",
-                  )}
-                >
-                  <div className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-full font-mono text-[11px] font-black text-white", chipColor(r.user_id))}>
-                    {getInitials(name)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={cn("truncate font-display text-[14px] font-bold leading-tight", isMe ? "text-brand" : "text-ink-100")}>{name}</span>
-                      {isMe && <span className="font-mono text-[8px] font-black uppercase tracking-wider text-brand">YOU</span>}
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-                      Picked {teamLabel} through {through}
-                    </div>
-                  </div>
-                  <div className="flex flex-none items-center gap-0.5 font-mono text-[14px] leading-none text-amber-400" title={`${r.streak} flame${r.streak === 1 ? "" : "s"}`}>
-                    {Array.from({ length: r.streak }).map((_, i) => (
-                      <span key={i}>🔥</span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {hiddenCount > 0 && (
-              <div className="rounded-xl border border-dashed border-ink-700 bg-ink-900/40 px-3 py-3 text-center font-mono text-[10px] uppercase tracking-wider text-ink-500">
-                {hiddenCount} other{hiddenCount === 1 ? "" : "s"} hidden — reveals at lock
-              </div>
-            )}
-          </div>
-        )}
+        <div className="space-y-3 p-4">
+          {cellSeries ? (
+            <SeriesVoteBar
+              series={cellSeries}
+              picks={picks}
+              currentUserId={currentUserId}
+              highlightTeamId={teamId}
+            />
+          ) : (
+            <div className="rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-6 text-center text-[12px] text-ink-500">
+              No active series in {roundShortLabel(round)}.
+            </div>
+          )}
 
-        <button
-          onClick={onClose}
-          className="mt-5 w-full rounded-xl border border-ink-700 bg-ink-800 py-3 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-300 transition active:scale-[0.98]"
-        >
-          Close
-        </button>
+          {riders.length > 0 && (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between px-1">
+                <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">
+                  {isLocked ? `${riders.length} ${riders.length === 1 ? "rider" : "riders"}` : "Your ride"}
+                </span>
+                {hiddenCount > 0 && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-ink-500">
+                    +{hiddenCount} hidden until lock
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1">
+                {visibleRiders.map((r) => {
+                  const name = userMap[r.user_id] ?? "?";
+                  const isMe = r.user_id === currentUserId;
+                  return (
+                    <div
+                      key={r.user_id}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-md border bg-ink-900/60 px-2.5 py-1.5",
+                        r.streak >= 2 ? "border-amber-400/40" : isMe ? "border-brand/40" : "border-ink-700",
+                      )}
+                    >
+                      <div className={cn("flex h-7 w-7 flex-none items-center justify-center rounded-full font-mono text-[10px] font-black text-white", chipColor(r.user_id))}>
+                        {getInitials(name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-1">
+                          <span className={cn("truncate font-display text-[12px] font-bold leading-tight", isMe ? "text-brand" : "text-ink-100")}>{name}</span>
+                          {isMe && <span className="font-mono text-[8px] font-black uppercase tracking-wider text-brand">you</span>}
+                        </div>
+                      </div>
+                      <span className="flex flex-none items-center font-mono text-[12px] leading-none text-amber-400">
+                        {flames(r.streak)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     </motion.div>
   );

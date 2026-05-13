@@ -164,11 +164,6 @@ export default async function StandingsPage() {
         </div>
       </div>
 
-      {/* Helper: how to see picks */}
-      <div className="mb-2 px-1 font-mono text-[10px] uppercase tracking-wider text-ink-500">
-        Tap any row to see their bracket and picks
-      </div>
-
       {/* Leaderboard — rows tappable to open per-user bracket modal */}
       <div className="mb-5">
         <LeaderboardSwitcher

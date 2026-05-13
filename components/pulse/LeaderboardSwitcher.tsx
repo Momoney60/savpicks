@@ -36,7 +36,7 @@ export default function LeaderboardSwitcher({
 
   const propsRows = propsRound === 1 ? propsR1 : (propsR2 ?? []);
   const rows = mode === "bracket" ? bracket : propsRows;
-  const subtitle = mode === "bracket" ? "Main pot · tap any row to see their bracket" : "$100 per round";
+  const subtitle = mode === "bracket" ? "Main pot · tap a row" : "$100 per round";
   const leaderPoints = rows[0]?.points ?? 0;
   const showR1WinnerBadge = mode === "props" && propsRound === 1 && !!r1Done && propsRows[0]?.points > 0;
 
