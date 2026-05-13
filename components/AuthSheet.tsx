@@ -164,10 +164,10 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                 {mode === "password" && (
                   <>
                     <h2 className="font-display text-2xl font-black tracking-tight">
-                      Welcome back.
+                      Sign in.
                     </h2>
                     <p className="mt-1 text-sm text-ink-400">
-                      Sign in with your password — or get a code by email.
+                      Have a password? Use it. First time? Get a 6-digit code by email.
                     </p>
 
                     <form onSubmit={signIn} className="mt-6 space-y-3">
@@ -186,7 +186,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                         autoComplete="current-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="password"
+                        placeholder="Password (skip if first time)"
                         className="w-full rounded-xl border border-ink-700 bg-ink-900 px-4 py-4 text-[17px] text-ink-100 placeholder:text-ink-500 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                       />
 
@@ -201,18 +201,27 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                         disabled={loading || !email || !password}
                         className="w-full rounded-xl bg-brand py-4 font-display text-[17px] font-bold text-ink-900 shadow-glow transition disabled:opacity-50 active:scale-[0.98]"
                       >
-                        {loading ? "Signing in..." : "Sign in"}
+                        {loading ? "Signing in..." : "Sign in with password"}
                       </button>
                     </form>
+
+                    <div className="my-4 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-ink-700" />
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-ink-500">or</span>
+                      <div className="h-px flex-1 bg-ink-700" />
+                    </div>
 
                     <button
                       type="button"
                       onClick={sendCode}
-                      disabled={loading}
-                      className="mt-3 w-full rounded-xl border border-ink-700 bg-ink-900/50 py-3 font-mono text-[12px] font-bold uppercase tracking-wider text-ink-300 transition active:scale-[0.98] disabled:opacity-50"
+                      disabled={loading || !email}
+                      className="w-full rounded-xl border border-brand/40 bg-brand/10 py-4 font-display text-[15px] font-bold text-brand transition active:scale-[0.98] disabled:opacity-50"
                     >
-                      Send me a code instead
+                      {loading ? "Sending..." : "Send me a 6-digit code →"}
                     </button>
+                    <p className="mt-2 text-center text-[11px] text-ink-500">
+                      First time, or forgot your password? Use this.
+                    </p>
                   </>
                 )}
 
@@ -268,10 +277,10 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                 {mode === "set-password" && (
                   <>
                     <h2 className="font-display text-2xl font-black tracking-tight">
-                      Set a password.
+                      You&apos;re in. Set a password?
                     </h2>
                     <p className="mt-1 text-sm text-ink-400">
-                      Faster sign-in next time. Your phone will save & autofill it.
+                      Skip the email next time. Your phone will save & autofill it on sign-in.
                     </p>
 
                     <form onSubmit={savePassword} className="mt-6 space-y-3">
