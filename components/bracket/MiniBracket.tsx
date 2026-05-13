@@ -10,8 +10,6 @@ import {
   type StreakSeries,
   type StreakPick,
 } from "@/lib/bracketStreaks";
-import StanleyCupSVG from "@/components/StanleyCupSVG";
-import SeriesVoteBar, { type VoteSeries } from "@/components/bracket/SeriesVoteBar";
 
 type Team = { id: string; short_name?: string; logo_url: string | null };
 type Series = {
@@ -225,7 +223,11 @@ function CupColumn({
           </div>
         ) : (
           <div className="relative flex w-full flex-col items-center justify-center py-2">
-            <StanleyCupSVG className="h-20 w-auto drop-shadow-[0_0_10px_rgba(125,211,252,0.3)]" />
+            <img
+              src="/stanley-cup.png"
+              alt="Stanley Cup"
+              className="h-20 w-auto object-contain drop-shadow-[0_0_10px_rgba(125,211,252,0.3)]"
+            />
             <div className="mt-1 text-center font-mono text-[7px] font-black uppercase tracking-[0.2em] text-brand">
               Stanley Cup
             </div>
@@ -439,14 +441,14 @@ function OnTheRideDrawer({
   );
 
   const cellSeries = useMemo(
-    () => series.find((s) => s.round === round && (s.team_a_id === teamId || s.team_b_id === teamId)) as VoteSeries | undefined,
+    () => series.find((s) => s.round === round && (s.team_a_id === teamId || s.team_b_id === teamId)),
     [series, teamId, round],
   );
   const isLocked = useMemo(() => {
     if (!cellSeries) return true;
     if (cellSeries.status === "live" || cellSeries.status === "completed") return true;
-    if (!cellSeries.picks_lock_at) return false;
-    return new Date(cellSeries.picks_lock_at).getTime() <= Date.now();
+    if (!(cellSeries as any).picks_lock_at) return false;
+    return new Date((cellSeries as any).picks_lock_at).getTime() <= Date.now();
   }, [cellSeries]);
 
   const riders = useMemo(() => ridersForCell(teamId, round, picks, series), [teamId, round, picks, series]);
@@ -481,23 +483,16 @@ function OnTheRideDrawer({
           </button>
         </div>
 
-        <div className="space-y-3 p-4">
-          {cellSeries ? (
-            <SeriesVoteBar
-              series={cellSeries}
-              picks={picks}
-              currentUserId={currentUserId}
-              highlightTeamId={teamId}
-            />
-          ) : (
+        <div className="p-4">
+          {visibleRiders.length === 0 && hiddenCount === 0 ? (
             <div className="rounded-xl border border-ink-700 bg-ink-900/60 px-3 py-6 text-center text-[12px] text-ink-500">
-              No active series in {roundShortLabel(round)}.
+              {isLocked
+                ? <>Nobody&apos;s riding {teamLabel} in {roundShortLabel(round)}.</>
+                : <>Picks reveal at lock.</>}
             </div>
-          )}
-
-          {riders.length > 0 && (
-            <div>
-              <div className="mb-1.5 flex items-center justify-between px-1">
+          ) : (
+            <>
+              <div className="mb-2 flex items-center justify-between px-1">
                 <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">
                   {isLocked ? `${riders.length} ${riders.length === 1 ? "rider" : "riders"}` : "Your ride"}
                 </span>
@@ -515,8 +510,8 @@ function OnTheRideDrawer({
                     <div
                       key={r.user_id}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md border bg-ink-900/60 px-2.5 py-1.5",
-                        r.streak >= 2 ? "border-amber-400/40" : isMe ? "border-brand/40" : "border-ink-700",
+                        "flex items-center gap-2.5 rounded-md border border-ink-700 bg-ink-900/60 px-2.5 py-1.5",
+                        isMe && "bg-brand/[0.04]",
                       )}
                     >
                       <div className={cn("flex h-7 w-7 flex-none items-center justify-center rounded-full font-mono text-[10px] font-black text-white", chipColor(r.user_id))}>
@@ -535,7 +530,7 @@ function OnTheRideDrawer({
                   );
                 })}
               </div>
-            </div>
+            </>
           )}
         </div>
       </motion.div>

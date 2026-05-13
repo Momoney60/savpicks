@@ -27,17 +27,21 @@ type MyPick = {
   is_correct?: boolean | null;
 };
 
+type Profile = { user_id: string; gamertag: string };
+
 export default function BracketView({
   series,
   myPicks,
   teams,
   allBracketPicks,
+  profiles = [],
   currentUserId,
 }: {
   series: Series[];
   myPicks: MyPick[];
   teams: Team[];
   allBracketPicks: StreakPick[];
+  profiles?: Profile[];
   currentUserId: string;
 }) {
   const myStreakPicks: StreakPick[] = useMemo(
@@ -80,6 +84,7 @@ export default function BracketView({
       <RoundVotesSection
         series={series as any}
         picks={allBracketPicks}
+        profiles={profiles}
         currentUserId={currentUserId}
       />
 

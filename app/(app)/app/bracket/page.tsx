@@ -44,6 +44,7 @@ export default async function BracketPage() {
         myPicks={(myPicks ?? []) as any}
         teams={(teams ?? []) as any}
         allBracketPicks={(allBracketPicks ?? []) as any}
+        profiles={mappedProfiles}
         currentUserId={user!.id}
       />
     </main>
