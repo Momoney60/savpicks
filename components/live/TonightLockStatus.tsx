@@ -94,11 +94,6 @@ export default function TonightLockStatus({
           );
         })}
       </div>
-      {outs.length > 0 && (
-        <div className="mt-2 truncate font-mono text-[10px] text-ink-500">
-          Missing: <span className="text-ink-300">{outs.map((u) => u.gamertag).join(", ")}</span>
-        </div>
-      )}
     </div>
   );
 }
