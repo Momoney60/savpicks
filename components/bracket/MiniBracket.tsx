@@ -320,28 +320,37 @@ function TeamBlock({
   );
   const myRide = currentUserId ? riders.find((r) => r.user_id === currentUserId) : undefined;
   const myStreak = myRide?.streak ?? 0;
-  const isMyRide = myStreak >= 2;
 
-  // Mutually exclusive states for tinting
   const isWrongPick = picked && eliminated;
-  const isPickActive = picked && !eliminated;
+  const isWonPick = picked && won;
+  const isLivePick = picked && !eliminated && !won;
   const isPlainElim = eliminated && !picked;
 
-  // Gold ring for active rides (>= 2 flames) overrides everything else
+  // Layered amber/orange box-shadows = ember glow.
+  // Tier 1 (fresh pick, 1 flame): soft amber halo.
+  // Tier 2 (active ride, 2+ flames): deeper amber > orange > red. Burning.
+  const liveGlow = isLivePick
+    ? myStreak >= 2
+      ? "border-amber-400/70 shadow-[0_0_10px_#fbbf2499,0_0_20px_#fb923c66,0_0_30px_#ef44443d]"
+      : "border-amber-400/50 shadow-[0_0_8px_#fbbf2466,0_0_16px_#fbbf243d]"
+    : "";
+
   const borderClass =
-    isMyRide ? "border-amber-400 ring-1 ring-amber-400/40" :
+    isLivePick ? liveGlow :
+    isWonPick ? "border-brand" :
     isWrongPick ? "border-rink-red" :
-    isPickActive ? "border-brand" :
     "border-ink-700/60";
 
   const stripBg =
     isWrongPick ? "bg-rink-red/15" :
-    isPickActive ? "bg-brand/15" :
+    isWonPick ? "bg-brand/15" :
+    isLivePick ? "bg-amber-500/15" :
     "bg-ink-800";
 
   const stripText =
     isWrongPick ? "text-rink-red" :
-    isPickActive ? "text-brand" :
+    isWonPick ? "text-brand" :
+    isLivePick ? "text-amber-300" :
     "text-ink-400";
 
   const logoDim = isPlainElim || isWrongPick ? "opacity-30 grayscale" : "";
@@ -349,7 +358,8 @@ function TeamBlock({
   const dotFill = (i: number) => {
     if (i >= wins) return "bg-ink-700";
     if (isWrongPick) return "bg-rink-red";
-    if (isPickActive) return "bg-brand";
+    if (isWonPick) return "bg-brand";
+    if (isLivePick) return "bg-amber-400";
     if (isPlainElim) return "bg-ink-600";
     return "bg-ink-200";
   };
