@@ -61,7 +61,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
       haptic("heavy");
     } else {
       haptic("light");
-      setNotice(`6-digit code sent to ${email}.`);
+      setNotice(`Code sent to ${email}.`);
       setMode("verify");
       setCode("");
     }
@@ -217,7 +217,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                       disabled={loading || !email}
                       className="w-full rounded-xl border border-brand/40 bg-brand/10 py-4 font-display text-[15px] font-bold text-brand transition active:scale-[0.98] disabled:opacity-50"
                     >
-                      {loading ? "Sending..." : "Send me a 6-digit code →"}
+                      {loading ? "Sending..." : "Email me a code →"}
                     </button>
                     <p className="mt-2 text-center text-[11px] text-ink-500">
                       First time, or forgot your password? Use this.
@@ -231,7 +231,7 @@ export default function AuthSheet({ defaultOpen = false }: { defaultOpen?: boole
                       Check your email.
                     </h2>
                     <p className="mt-1 text-sm text-ink-400">
-                      {notice ?? `6-digit code sent to ${email}.`}
+                      {notice ?? `Code sent to ${email}.`}
                     </p>
 
                     <form onSubmit={verifyCode} className="mt-6 space-y-3">
