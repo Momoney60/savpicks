@@ -53,28 +53,22 @@ export default function LeaderboardSwitcher({
     setDrawerUserId(uid);
   };
 
-  // Tier slicing — group by distinct ranks (handles ties correctly)
-  // Gold = rank #1, Silver = next rank, Bronze = next after that, Pack = rest.
-  const { gold, silver, bronze, pack, podiumIds } = useMemo(() => {
-    if (rows.length === 0) return { gold: [] as Row[], silver: [] as Row[], bronze: [] as Row[], pack: [] as Row[], podiumIds: new Set<string>() };
-    const tierForRank = (rank: number, distinctRanks: number[]): "gold" | "silver" | "bronze" | "pack" => {
-      const idx = distinctRanks.indexOf(rank);
-      if (idx === 0) return "gold";
-      if (idx === 1) return "silver";
-      if (idx === 2) return "bronze";
-      return "pack";
-    };
+  // Tier slicing — gold = rank #1, silver = next rank, everyone else = pack.
+  // Bronze deliberately dropped: when a 13-player pool has 7 tied at "3rd," that's
+  // the middle of the field, not a podium. Keeps the top tight.
+  const { gold, silver, pack, podiumIds } = useMemo(() => {
+    if (rows.length === 0) return { gold: [] as Row[], silver: [] as Row[], pack: [] as Row[], podiumIds: new Set<string>() };
     const distinct = Array.from(new Set(rows.map((r) => r.rank))).sort((a, b) => a - b);
-    const g: Row[] = []; const s: Row[] = []; const b: Row[] = []; const p: Row[] = [];
+    const goldRank = distinct[0];
+    const silverRank = distinct[1];
+    const g: Row[] = []; const s: Row[] = []; const p: Row[] = [];
     for (const row of rows) {
-      const t = tierForRank(row.rank, distinct);
-      if (t === "gold") g.push(row);
-      else if (t === "silver") s.push(row);
-      else if (t === "bronze") b.push(row);
+      if (row.rank === goldRank) g.push(row);
+      else if (row.rank === silverRank) s.push(row);
       else p.push(row);
     }
-    const ids = new Set([...g, ...s, ...b].map((r) => r.user_id));
-    return { gold: g, silver: s, bronze: b, pack: p, podiumIds: ids };
+    const ids = new Set([...g, ...s].map((r) => r.user_id));
+    return { gold: g, silver: s, pack: p, podiumIds: ids };
   }, [rows]);
 
   const showR1Champ = mode === "props" && propsRound === 1 && !!r1Done && rows[0]?.points > 0;
@@ -163,15 +157,6 @@ export default function LeaderboardSwitcher({
                       onRowClick={canOpenBracket ? openBracket : undefined}
                     />
                   )}
-                  {bronze.length > 0 && (
-                    <PodiumTier
-                      tier="bronze"
-                      rows={bronze}
-                      mode={mode}
-                      currentUserId={currentUserId}
-                      onRowClick={canOpenBracket ? openBracket : undefined}
-                    />
-                  )}
                 </div>
 
                 {/* Pack */}
@@ -228,7 +213,7 @@ export default function LeaderboardSwitcher({
 
 // ───────────────────────── Podium ─────────────────────────
 
-type Tier = "gold" | "silver" | "bronze";
+type Tier = "gold" | "silver";
 
 const TIER_STYLE: Record<Tier, {
   medal: string;
@@ -253,14 +238,6 @@ const TIER_STYLE: Record<Tier, {
     bg: "bg-gradient-to-br from-slate-200/[0.10] via-slate-400/[0.05] to-transparent",
     accent: "text-slate-200",
     ptsColor: "text-slate-100",
-  },
-  bronze: {
-    medal: "🥉",
-    label: "3rd",
-    border: "border-amber-700/45",
-    bg: "bg-gradient-to-br from-amber-700/[0.14] via-amber-900/[0.06] to-transparent",
-    accent: "text-amber-300",
-    ptsColor: "text-amber-200",
   },
 };
 
@@ -310,15 +287,14 @@ function PodiumTier({
               key={row.user_id}
               {...(onRowClick ? { type: "button", onClick: () => onRowClick(row.user_id) } : {})}
               className={cn(
-                "flex w-full items-center gap-3 px-3 py-2 text-left transition",
+                "flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition",
                 onRowClick && "active:bg-ink-800/40",
               )}
             >
               <div className={cn(
-                "flex h-8 w-8 flex-none items-center justify-center rounded-full font-display text-[11px] font-black",
+                "flex h-7 w-7 flex-none items-center justify-center rounded-full font-display text-[11px] font-black",
                 tier === "gold" ? "bg-yellow-500/20 text-yellow-300 ring-1 ring-yellow-500/40" :
-                tier === "silver" ? "bg-slate-300/15 text-slate-100 ring-1 ring-slate-300/30" :
-                "bg-amber-700/20 text-amber-200 ring-1 ring-amber-700/40",
+                "bg-slate-300/15 text-slate-100 ring-1 ring-slate-300/30",
               )}>
                 {row.rank}
               </div>
@@ -335,8 +311,8 @@ function PodiumTier({
                   {(row.yesterday_points ?? 0) > 0 && (
                     <span className="text-emerald-400/90">+{row.yesterday_points} last night</span>
                   )}
-                  {(row.max_streak ?? 0) >= 2 && mode === "bracket" && (
-                    <span className="text-amber-400">🔥 ×{row.max_streak}</span>
+                  {(row.max_streak ?? 0) >= 3 && mode === "bracket" && (
+                    <span className="text-amber-400">🔥 ×{row.max_streak} ride</span>
                   )}
                 </div>
               </div>
