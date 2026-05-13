@@ -25,7 +25,6 @@ type GoalieStat = {
 };
 
 function parseSaves(p: any): { saves: number; shotsAgainst: number; goalsAgainst: number } {
-  // saveShotsAgainst is a string like "28/30" (saves / shots)
   const ssa: string = p.saveShotsAgainst ?? "";
   let saves = 0;
   let shotsAgainst = 0;
@@ -66,7 +65,7 @@ export async function POST(request: Request) {
   const awayScore = box.awayTeam?.score ?? 0;
 
   const playerStats: PlayerStat[] = [];
-  const playerLookup: Record<string, { points: number; team: string; pim: number; shots: number }> = {};
+  const playerLookup: Record<string, { points: number; team: string; pim: number; shots: number; goals: number; assists: number }> = {};
   const goalieLookup: Record<string, GoalieStat> = {};
 
   const collect = (side: any, abbrev: string) => {
@@ -81,7 +80,7 @@ export async function POST(request: Request) {
         const shots = p.sog ?? p.shots ?? 0;
         const points = goals + assists;
         playerStats.push({ name, team: abbrev, goals, assists, points, pim, sog: shots });
-        playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim, shots };
+        playerLookup[name.toLowerCase().trim()] = { points, team: abbrev, pim, shots, goals, assists };
       }
     }
     for (const p of side.goalies ?? []) {
@@ -97,7 +96,6 @@ export async function POST(request: Request) {
         toi: p.toi ?? "",
         starter: p.starter ?? false,
       };
-      // Also include goalie in playerStats (for pim aggregation)
       playerStats.push({
         name,
         team: abbrev,
@@ -129,7 +127,6 @@ export async function POST(request: Request) {
     })
     .eq("id", game_id);
 
-  // Strict game_id match — no more fuzzy game_label LIKE (prevents cross-game pollution)
   const { data: props } = await supabase
     .from("props")
     .select("*")
@@ -182,8 +179,24 @@ export async function POST(request: Request) {
       const result = totalGoals > line ? "over" : totalGoals < line ? "under" : "push";
       outcome = { result, total_goals: totalGoals, line };
 
+    } else if (prop.prop_type === "player_ou") {
+      const stat = prop.metadata?.stat ?? "goals";
+      const line = parseFloat(prop.metadata?.line ?? "0");
+      const playerName = prop.metadata?.player_name ?? "";
+      const last = getLast(playerName);
+      const entry = Object.entries(playerLookup).find(([k]) => getLast(k) === last);
+      const stats = entry?.[1];
+      let value = 0;
+      if (stats) {
+        if (stat === "goals") value = stats.goals ?? 0;
+        else if (stat === "shots_on_goal") value = stats.shots ?? 0;
+        else if (stat === "assists") value = stats.assists ?? 0;
+        else value = stats.points ?? 0;
+      }
+      const result = value > line ? "over" : value < line ? "under" : "push";
+      outcome = { result, value, stat, line, player_name: playerName, played: !!entry };
+
     } else if (prop.prop_type === "game_winner") {
-      // Picker choice is stored as team abbrev (home_team or away_team)
       const winnerAbbrev = homeScore > awayScore ? homeAbbrev : awayScore > homeScore ? awayAbbrev : "tie";
       outcome = { winner_team: winnerAbbrev, home_score: homeScore, away_score: awayScore, home_team: homeAbbrev, away_team: awayAbbrev };
 

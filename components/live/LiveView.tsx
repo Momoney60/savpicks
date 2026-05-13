@@ -28,7 +28,7 @@ type Game = {
 type Prop = {
   id: string;
   game_id: string | null;
-  prop_type: "h2h_player" | "h2h_goalie" | "game_total_pim" | "game_total_goals" | "game_winner" | "next_team_to_score";
+  prop_type: "h2h_player" | "h2h_goalie" | "game_total_pim" | "game_total_goals" | "game_winner" | "next_team_to_score" | "player_ou";
   status: "open" | "locked" | "resolved" | "void";
   points_reward: number;
   locks_at: string | null;
@@ -321,7 +321,7 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
       if (outcome.winner === "a") winnerSide = "a";
       else if (outcome.winner === "b") winnerSide = "b";
-    } else if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
+    } else if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals" || prop.prop_type === "player_ou") {
       if (outcome.result === "over") winnerSide = "a";
       else if (outcome.result === "under") winnerSide = "b";
     } else if (prop.prop_type === "game_winner") {
@@ -347,7 +347,7 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     if (h2hStat === "shots") return (p as any).shots ?? 0;
     return p.points ?? 0;
   };
-  const statUnit = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
+  const h2hStatUnit = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
 
   let totalContext: string | null = null;
   if (prop.prop_type === "game_total_pim") {
@@ -356,6 +356,19 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
   } else if (prop.prop_type === "game_total_goals") {
     const total = isResolved ? (outcome.total_goals ?? ((game.home_score ?? 0) + (game.away_score ?? 0))) : ((game.home_score ?? 0) + (game.away_score ?? 0));
     if (isLive || isResolved) totalContext = `${total} G`;
+  } else if (prop.prop_type === "player_ou") {
+    const playerLast = lastName(prop.metadata?.player_name ?? "");
+    const stats = playerLast ? game.player_stats?.find((pp) => lastName(pp.name).toLowerCase() === playerLast.toLowerCase()) : undefined;
+    const stat = prop.metadata?.stat ?? "goals";
+    const live = isResolved
+      ? (outcome.value ?? 0)
+      : stats
+        ? stat === "goals" ? (stats.goals ?? 0)
+        : stat === "shots_on_goal" ? ((stats as any).sog ?? 0)
+        : stat === "assists" ? (stats.assists ?? 0)
+        : (stats.points ?? 0)
+        : 0;
+    if (isLive || isResolved) totalContext = `${live} ${statUnit(stat)}`;
   }
 
   const renderSide = (isA: boolean) => {
@@ -403,7 +416,7 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
         rightStat = (
           <>
             <span className={cn("font-display text-[28px] font-black tabular-nums leading-none", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-100")}>{statVal}</span>
-            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">{statUnit}</span>
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-ink-500">{h2hStatUnit}</span>
           </>
         );
       }
@@ -433,9 +446,14 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     } else {
       const arrow = opt.value === "over" ? "▲" : "▼";
       const dirLabel = opt.value === "over" ? "OVER" : "UNDER";
+      const headshot = prop.prop_type === "player_ou" ? prop.metadata?.player_headshot : null;
       head = (
         <div className="flex items-center gap-2">
-          <span className={cn("font-display text-[18px] font-black", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-300")}>{arrow}</span>
+          {headshot ? (
+            <img src={headshot} alt="" className={cn("h-12 w-12 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover", isLoser && "opacity-60")} />
+          ) : (
+            <span className={cn("font-display text-[18px] font-black", isWinner ? "text-brand" : isLoser ? "text-ink-500" : "text-ink-300")}>{arrow}</span>
+          )}
           <div>
             <div className={cn("font-display text-[12px] font-bold leading-tight", isWinner ? "text-brand" : isLoser ? "text-ink-400" : "text-ink-100")}>
               {dirLabel}{isWinner ? " 🏆" : ""}
@@ -526,6 +544,7 @@ function UserPicksDrawer({ userId, users, propsForGame, allPropPicks, onClose }:
     if (prop.prop_type === "game_total_pim") return `PIMs O/U ${prop.metadata?.line ?? "-"}`;
     if (prop.prop_type === "game_total_goals") return `Goals O/U ${prop.metadata?.line ?? "-"}`;
     if (prop.prop_type === "game_winner") return "Game Winner";
+    if (prop.prop_type === "player_ou") return `${prop.metadata?.player_name ?? "?"} ${statLabel(prop.metadata?.stat ?? "")} O/U ${prop.metadata?.line ?? "-"}`;
     return "";
   };
   const selectionLabelOf = (prop: Prop, selection: any): string => {
@@ -533,7 +552,7 @@ function UserPicksDrawer({ userId, users, propsForGame, allPropPicks, onClose }:
     if (prop.prop_type === "h2h_player" || prop.prop_type === "h2h_goalie") {
       return sel === "a" ? (prop.metadata?.player_a_name ?? "A") : (prop.metadata?.player_b_name ?? "B");
     }
-    if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals") {
+    if (prop.prop_type === "game_total_pim" || prop.prop_type === "game_total_goals" || prop.prop_type === "player_ou") {
       return sel === "over" ? `Over ${prop.metadata?.line ?? "-"}` : `Under ${prop.metadata?.line ?? "-"}`;
     }
     return sel;
@@ -601,7 +620,22 @@ function UserPicksDrawer({ userId, users, propsForGame, allPropPicks, onClose }:
   );
 }
 
-const PROP_ORDER: Record<string, number> = { h2h_player: 0, h2h_goalie: 1, game_winner: 2, game_total_goals: 3, game_total_pim: 4, next_team_to_score: 5 };
+const PROP_ORDER: Record<string, number> = { player_ou: 0, h2h_player: 1, h2h_goalie: 2, game_winner: 3, game_total_goals: 4, game_total_pim: 5, next_team_to_score: 6 };
+
+function statLabel(stat: string): string {
+  if (stat === "goals") return "GOALS";
+  if (stat === "shots_on_goal") return "SHOTS";
+  if (stat === "points") return "POINTS";
+  if (stat === "assists") return "ASSISTS";
+  return stat.toUpperCase();
+}
+function statUnit(stat: string): string {
+  if (stat === "goals") return "G";
+  if (stat === "shots_on_goal") return "SOG";
+  if (stat === "points") return "PTS";
+  if (stat === "assists") return "A";
+  return "";
+}
 
 function StatusStrip({ game }: { game: Game }) {
   const isLive = game.status === "live";
@@ -668,6 +702,7 @@ function getPropBadge(prop: Prop): { text: string; color: string } {
   if (prop.prop_type === "game_total_pim") return { text: "TOTAL PIMS", color: "text-rink-red" };
   if (prop.prop_type === "game_total_goals") return { text: "TOTAL GOALS", color: "text-emerald-400" };
   if (prop.prop_type === "game_winner") return { text: "GAME WINNER", color: "text-brand" };
+  if (prop.prop_type === "player_ou") return { text: `PLAYER ${statLabel(prop.metadata?.stat ?? "")}`, color: "text-sky-400" };
   if (prop.prop_type === "next_team_to_score") return { text: "NEXT GOAL", color: "text-brand" };
   return { text: "", color: "text-ink-100" };
 }
@@ -678,7 +713,7 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
   const locked = prop.status !== "open";
   const options = getPropOptions(prop, game);
   const badge = getPropBadge(prop);
-  const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, h2h_goalie: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, game_total_goals: `Line · ${prop.metadata?.line ?? "—"}`, game_winner: `${prop.metadata?.away_team ?? "AWAY"} @ ${prop.metadata?.home_team ?? "HOME"}`, next_team_to_score: "Who scores next?" }[prop.prop_type];
+  const sub = { h2h_player: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, h2h_goalie: `${prop.metadata?.player_a_name} vs ${prop.metadata?.player_b_name}`, game_total_pim: `Line · ${prop.metadata?.line ?? "—"}`, game_total_goals: `Line · ${prop.metadata?.line ?? "—"}`, game_winner: `${prop.metadata?.away_team ?? "AWAY"} @ ${prop.metadata?.home_team ?? "HOME"}`, next_team_to_score: "Who scores next?", player_ou: `${prop.metadata?.player_name ?? "?"} · ${prop.metadata?.player_team ?? ""} · Line ${prop.metadata?.line ?? "—"}` }[prop.prop_type];
 
   async function pick(val: string) {
     if (locked) return;
@@ -694,17 +729,14 @@ function PropRow({ prop, existingPick, game }: { prop: Prop; existingPick?: Prop
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // Revert optimistic state and surface error loudly
         setSelection(prevSelection);
         setErrorMsg(data?.error ?? `Pick failed (${res.status}) — tap to retry`);
         haptic("heavy");
-        // Don't auto-dismiss auth errors — they need explicit re-login
         if (res.status !== 401) {
           setTimeout(() => setErrorMsg(null), 6000);
         }
       }
     } catch (e: any) {
-      // Network failure — fetch threw before reaching server
       setSelection(prevSelection);
       setErrorMsg("Network error — pick NOT saved. Check your connection and tap again.");
       haptic("heavy");
@@ -762,7 +794,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
     const bPts = outcome.player_b_value ?? outcome.player_b_pts ?? 0;
     const winner = outcome.winner;
     const isTie = winner === "tie";
-    const statLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : "pts";
+    const sLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : "pts";
 
     return (
       <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
@@ -782,7 +814,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             </div>
             <div className="mt-0.5 flex items-baseline gap-1">
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "a" ? "text-brand" : "text-ink-400")}>{aPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{sLabel}</span>
               {winner === "a" && <span className="ml-1 text-[12px]">🏆</span>}
             </div>
           </div>
@@ -795,7 +827,43 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
             <div className="mt-0.5 flex items-baseline justify-end gap-1">
               {winner === "b" && <span className="mr-1 text-[12px]">🏆</span>}
               <span className={cn("font-display text-[22px] font-black tabular-nums", winner === "b" ? "text-brand" : "text-ink-400")}>{bPts}</span>
-              <span className="font-mono text-[9px] uppercase text-ink-500">{statLabel}</span>
+              <span className="font-mono text-[9px] uppercase text-ink-500">{sLabel}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (prop.prop_type === "player_ou") {
+    const line = parseFloat(prop.metadata?.line ?? "0");
+    const value = outcome.value ?? 0;
+    const result = outcome.result;
+    const isPush = result === "push";
+    const stat = prop.metadata?.stat ?? "goals";
+    const wonLabel = result === "over" ? `OVER ${line}` : result === "under" ? `UNDER ${line}` : "PUSH";
+    return (
+      <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
+        <div className="mb-1.5 flex items-center gap-2">
+          <span className="font-mono text-[9px] font-black uppercase tracking-[0.2em] text-ink-400">Result</span>
+          {isPush ? (
+            <span className="rounded-md bg-ink-700 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-ink-300">Push</span>
+          ) : (
+            <span className="rounded-md bg-brand/15 px-1.5 py-0.5 font-mono text-[9px] font-black uppercase text-brand">+5 · {wonLabel}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {prop.metadata?.player_headshot && (
+            <img src={prop.metadata.player_headshot} alt="" className="h-12 w-12 flex-none rounded-full border border-ink-700 bg-ink-800 object-cover" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-display text-[14px] font-bold text-ink-100">{prop.metadata?.player_name ?? "?"}</div>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink-500">{prop.metadata?.player_team ?? ""} · Line {line}</div>
+          </div>
+          <div className="text-right">
+            <div className="flex items-baseline gap-1 justify-end">
+              <span className="font-display text-[28px] font-black tabular-nums leading-none text-brand">{value}</span>
+              <span className="font-mono text-[10px] uppercase text-ink-400">{statUnit(stat)}</span>
             </div>
           </div>
         </div>
@@ -887,6 +955,11 @@ function getPropOptions(prop: Prop, game?: Game): { value: string; label: string
       return [
         { value: "over", label: `Over ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
         { value: "under", label: `Under ${prop.metadata?.line ?? "—"}`, subtitle: "O/U" },
+      ];
+    case "player_ou":
+      return [
+        { value: "over", label: `Over ${prop.metadata?.line ?? "—"}`, subtitle: (prop.metadata?.player_name ?? "PLAYER").toUpperCase(), image: prop.metadata?.player_headshot, imageType: "headshot" },
+        { value: "under", label: `Under ${prop.metadata?.line ?? "—"}`, subtitle: (prop.metadata?.player_name ?? "PLAYER").toUpperCase(), image: prop.metadata?.player_headshot, imageType: "headshot" },
       ];
     case "game_winner":
       return [

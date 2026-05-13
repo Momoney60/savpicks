@@ -4,9 +4,12 @@ import { NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const INGEST_SECRET = process.env.INGEST_SHARED_SECRET;
+const ODDS_API_KEY = process.env.ODDS_API_KEY;
 
 // =============================================================================
-// PROP GENERATOR v3 — variety + fair odds + headshots + game_winner
+// PROP GENERATOR v4 — Odds API single-player O/U + game winner, deterministic
+// Goal: zero manual intervention. Every game gets 2 props. If Odds API fails
+// or a player can't be matched to a roster, fall back to game-level totals.
 // =============================================================================
 
 type Skater = {
@@ -44,16 +47,54 @@ type TeamClubData = {
   teamGoalsPerGame: number | null;
 };
 
-// Fair-odds guardrails — hard caps prevent hallucinated/extreme lines
-const PIM_MIN = 10;
-const PIM_MAX = 36;
+type OddsApiEvent = {
+  id: string;
+  commence_time: string;
+  home_team: string;
+  away_team: string;
+};
+
+type ParsedPlayerLine = { player: string; stat: "goals" | "shots_on_goal" | "points"; line: number };
+
+const ODDS_API_BASE = "https://api.the-odds-api.com/v4/sports/icehockey_nhl";
+
+const ABBREV_TO_NAME: Record<string, string> = {
+  ANA: "Anaheim Ducks",
+  BOS: "Boston Bruins",
+  BUF: "Buffalo Sabres",
+  CGY: "Calgary Flames",
+  CAR: "Carolina Hurricanes",
+  CHI: "Chicago Blackhawks",
+  COL: "Colorado Avalanche",
+  CBJ: "Columbus Blue Jackets",
+  DAL: "Dallas Stars",
+  DET: "Detroit Red Wings",
+  EDM: "Edmonton Oilers",
+  FLA: "Florida Panthers",
+  LAK: "Los Angeles Kings",
+  MIN: "Minnesota Wild",
+  MTL: "Montreal Canadiens",
+  NSH: "Nashville Predators",
+  NJD: "New Jersey Devils",
+  NYI: "New York Islanders",
+  NYR: "New York Rangers",
+  OTT: "Ottawa Senators",
+  PHI: "Philadelphia Flyers",
+  PIT: "Pittsburgh Penguins",
+  SJS: "San Jose Sharks",
+  SEA: "Seattle Kraken",
+  STL: "St Louis Blues",
+  TBL: "Tampa Bay Lightning",
+  TOR: "Toronto Maple Leafs",
+  UTA: "Utah Mammoth",
+  VAN: "Vancouver Canucks",
+  VGK: "Vegas Golden Knights",
+  WSH: "Washington Capitals",
+  WPG: "Winnipeg Jets",
+};
+
 const GOALS_MIN = 4.5;
 const GOALS_MAX = 7.5;
-
-function clampPimLine(raw: number): number {
-  const r = Math.round(raw * 2) / 2;
-  return Math.max(PIM_MIN, Math.min(PIM_MAX, r));
-}
 
 function clampGoalsLine(raw: number): number {
   const r = Math.round(raw * 2) / 2;
@@ -64,175 +105,178 @@ async function fetchClubData(teamAbbrev: string): Promise<TeamClubData | null> {
   const url = `https://api-web.nhle.com/v1/club-stats/${teamAbbrev}/20252026/2`;
   try {
     const res = await fetch(url);
-    if (!res.ok) {
-      console.log(`[${teamAbbrev}] FETCH FAIL: ${res.status} ${res.statusText} on ${url}`);
-      return null;
-    }
+    if (!res.ok) return null;
     const data: any = await res.json();
     const skaters: Skater[] = data.skaters ?? [];
     const goalies: Goalie[] = data.goalies ?? [];
-    console.log(`[${teamAbbrev}] got ${skaters.length} skaters, ${goalies.length} goalies`);
-
     const eligibleSkaters = skaters.filter((s) => s.positionCode !== "G");
-    if (eligibleSkaters.length === 0) {
-      console.log(`[${teamAbbrev}] FAIL: 0 eligible skaters after G filter. raw skater count=${skaters.length}`);
-      if (skaters[0]) console.log(`[${teamAbbrev}] sample keys: ${Object.keys(skaters[0]).sort().join(",")}`);
-      return null;
-    }
-    if (eligibleSkaters[0]) {
-      const s0 = eligibleSkaters[0] as any;
-      console.log(`[${teamAbbrev}] sample keys: ${Object.keys(s0).sort().join(",")}`);
-      console.log(`[${teamAbbrev}] s0 ${s0.firstName?.default} ${s0.lastName?.default} points=${s0.points} goals=${s0.goals} gp=${s0.gamesPlayed}`);
-    }
-    const topThree = [...eligibleSkaters]
-      .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
-      .slice(0, 3)
-      .map((s) => `${s.firstName?.default} ${s.lastName?.default}(${s.points ?? "?"}pts,${s.gamesPlayed ?? "?"}gp)`)
-      .join(", ");
-    const totalPim = skaters.reduce((sum, s) => sum + (s.penaltyMinutes ?? s.pim ?? 0), 0);
-    const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
-    const teamPimPerGame = maxGP > 0 ? totalPim / maxGP : null;
+    if (eligibleSkaters.length === 0) return null;
     const totalGoals = skaters.reduce((sum, s) => sum + (s.goals ?? 0), 0);
+    const maxGP = skaters.reduce((max, s) => Math.max(max, s.gamesPlayed ?? 0), 0);
     const teamGoalsPerGame = maxGP > 0 ? totalGoals / maxGP : null;
-    console.log(`[${teamAbbrev}] top3: ${topThree} | teamPIM/GP: ${(teamPimPerGame ?? 0).toFixed(2)}`);
-
-    return { abbrev: teamAbbrev, skaters: eligibleSkaters, goalies, teamPimPerGame, teamGoalsPerGame };
-  } catch (e: any) {
-    console.log(`[${teamAbbrev}] EXCEPTION: ${e?.message} | url=${url}`);
+    return { abbrev: teamAbbrev, skaters: eligibleSkaters, goalies, teamPimPerGame: null, teamGoalsPerGame };
+  } catch {
     return null;
   }
 }
 
-
-async function getPlayoffPimAverage(supabase: any, seriesId: string | null): Promise<number | null> {
-  if (!seriesId) return null;
-  const { data } = await supabase
-    .from("games")
-    .select("total_pim")
-    .eq("series_id", seriesId)
-    .eq("status", "final")
-    .not("total_pim", "is", null);
-  if (!data || data.length === 0) return null;
-  const totals: number[] = data.map((g: any) => g.total_pim);
-  return totals.reduce((a, b) => a + b, 0) / totals.length;
-}
-
-async function getLeaguePlayoffPimAverage(supabase: any): Promise<number> {
-  const { data } = await supabase
-    .from("games")
-    .select("total_pim")
-    .eq("status", "final")
-    .not("total_pim", "is", null);
-  if (!data || data.length === 0) return 22;
-  const totals: number[] = data.map((g: any) => g.total_pim);
-  return totals.reduce((a, b) => a + b, 0) / totals.length;
-}
-
-function pickTopScorer(t: TeamClubData): Skater | null {
-  // Must have actual points > 0 — defends against API returning no points field
-  const sorted = [...t.skaters]
-    .filter((s) => (s.points ?? 0) > 0)
-    .sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
-  return sorted[0] ?? null;
-}
-function pickTopShooter(t: TeamClubData): Skater | null {
-  return [...t.skaters].sort((a, b) => (b.shots ?? 0) - (a.shots ?? 0))[0] ?? null;
-}
-function pickTopPimLeader(t: TeamClubData): Skater | null {
-  return [...t.skaters]
-    .filter((s) => (s.gamesPlayed ?? 0) >= 10)
-    .sort((a, b) => (b.penaltyMinutes ?? b.pim ?? 0) - (a.penaltyMinutes ?? a.pim ?? 0))[0] ?? null;
-}
-function pickStarterGoalie(t: TeamClubData): Goalie | null {
-  return [...t.goalies]
-    .filter((g) => (g.gamesPlayed ?? 0) >= 5)
-    .sort((a, b) => (b.gamesPlayed ?? 0) - (a.gamesPlayed ?? 0))[0] ?? null;
-}
 function headshotUrl(playerId: number, teamAbbrev: string): string {
   return `https://assets.nhle.com/mugs/nhl/20252026/${teamAbbrev}/${playerId}.png`;
 }
-function playerName(p: { firstName?: { default: string }; lastName?: { default: string } }): string {
-  return `${p.firstName?.default ?? ""} ${p.lastName?.default ?? ""}`.trim();
+
+function normName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.'’`-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-type PropSpec =
-  | { kind: "h2h_points"; a: Skater; b: Skater }
-  | { kind: "h2h_shots"; a: Skater; b: Skater }
-  | { kind: "h2h_pim"; a: Skater; b: Skater }
-  | { kind: "h2h_saves"; a: Goalie; b: Goalie }
-  | { kind: "total_pim"; line: number }
-  | { kind: "total_goals"; line: number }
-  | { kind: "game_winner" };
+function findSkaterByName(name: string, ...teams: TeamClubData[]): { player: Skater; team: TeamClubData } | null {
+  const target = normName(name);
+  const targetParts = target.split(" ");
+  const lastTarget = targetParts[targetParts.length - 1];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function chooseProps(
-  homeTeam: TeamClubData,
-  awayTeam: TeamClubData,
-  pimLine: number,
-  goalsLine: number,
-): PropSpec[] {
-  const picks: PropSpec[] = [];
-
-  // ===== First prop: H2H variant =====
-  const h2hOptions: PropSpec[] = [];
-  const homeTop = pickTopScorer(homeTeam);
-  const awayTop = pickTopScorer(awayTeam);
-  if (homeTop && awayTop) h2hOptions.push({ kind: "h2h_points", a: awayTop, b: homeTop });
-
-  const homeShooter = pickTopShooter(homeTeam);
-  const awayShooter = pickTopShooter(awayTeam);
-  if (
-    homeShooter &&
-    awayShooter &&
-    (homeShooter.playerId !== homeTop?.playerId || awayShooter.playerId !== awayTop?.playerId)
-  ) {
-    // h2hOptions.push({ kind: "h2h_shots", a: awayShooter, b: homeShooter }); // DISABLED - poller does not capture sog yet
-  }
-
-  const homeEnforcer = pickTopPimLeader(homeTeam);
-  const awayEnforcer = pickTopPimLeader(awayTeam);
-  if (
-    homeEnforcer &&
-    awayEnforcer &&
-    (homeEnforcer.penaltyMinutes ?? 0) >= 40 &&
-    (awayEnforcer.penaltyMinutes ?? 0) >= 40
-  ) {
-    h2hOptions.push({ kind: "h2h_pim", a: awayEnforcer, b: homeEnforcer });
-  }
-
-  // DISABLED: goalie duel. club-stats returns total-season GP including prior teams,
-  // which mis-identifies starters when goalies trade mid-season (e.g. Jarry PIT→EDM).
-  // Revisit when we can pull probable starters from /gamecenter/{id}/landing.
-  // const homeGoalie = pickStarterGoalie(homeTeam);
-  // const awayGoalie = pickStarterGoalie(awayTeam);
-  // if (homeGoalie && awayGoalie) {
-  //   h2hOptions.push({ kind: "h2h_saves", a: awayGoalie, b: homeGoalie });
-  // }
-
-  if (h2hOptions.length > 0) {
-    const weighted: PropSpec[] = [];
-    for (const opt of h2hOptions) {
-      const count = opt.kind === "h2h_points" ? 3 : 1;
-      for (let i = 0; i < count; i++) weighted.push(opt);
+  for (const team of teams) {
+    for (const p of team.skaters) {
+      const full = normName(`${p.firstName?.default ?? ""} ${p.lastName?.default ?? ""}`);
+      if (full === target) return { player: p, team };
     }
-    picks.push(pickRandom(weighted));
+  }
+  for (const team of teams) {
+    for (const p of team.skaters) {
+      const last = normName(p.lastName?.default ?? "");
+      if (last && last === lastTarget) return { player: p, team };
+    }
+  }
+  return null;
+}
+
+async function fetchOddsApiEvents(): Promise<OddsApiEvent[]> {
+  if (!ODDS_API_KEY) return [];
+  try {
+    const res = await fetch(`${ODDS_API_BASE}/events?apiKey=${ODDS_API_KEY}`);
+    if (!res.ok) {
+      console.log(`[odds-api] events fetch failed: ${res.status} ${res.statusText}`);
+      return [];
+    }
+    return (await res.json()) as OddsApiEvent[];
+  } catch (e: any) {
+    console.log(`[odds-api] events fetch exception: ${e?.message}`);
+    return [];
+  }
+}
+
+async function fetchOddsApiPlayerProps(eventId: string): Promise<ParsedPlayerLine[]> {
+  if (!ODDS_API_KEY) return [];
+  const markets = "player_goals,player_shots_on_goal,player_points";
+  const url = `${ODDS_API_BASE}/events/${eventId}/odds?apiKey=${ODDS_API_KEY}&regions=us&markets=${markets}&oddsFormat=american`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.log(`[odds-api] event ${eventId} props failed: ${res.status}`);
+      return [];
+    }
+    const data: any = await res.json();
+    const out: ParsedPlayerLine[] = [];
+    const seen = new Set<string>();
+    for (const bm of data.bookmakers ?? []) {
+      for (const m of bm.markets ?? []) {
+        let stat: ParsedPlayerLine["stat"] | null = null;
+        if (m.key === "player_goals") stat = "goals";
+        else if (m.key === "player_shots_on_goal") stat = "shots_on_goal";
+        else if (m.key === "player_points") stat = "points";
+        if (!stat) continue;
+        for (const o of m.outcomes ?? []) {
+          const sideCandidate = String(o.name ?? "").toLowerCase();
+          const isSide = sideCandidate === "over" || sideCandidate === "under";
+          const player = isSide ? o.description : o.name;
+          const point = typeof o.point === "number" ? o.point : parseFloat(o.point ?? "");
+          if (!player || !Number.isFinite(point)) continue;
+          const key = `${player}|${stat}|${point}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push({ player, stat, line: point });
+        }
+      }
+    }
+    return out;
+  } catch (e: any) {
+    console.log(`[odds-api] event ${eventId} props exception: ${e?.message}`);
+    return [];
+  }
+}
+
+function matchOddsEventToGame(events: OddsApiEvent[], home: string, away: string, scheduledAt: string): OddsApiEvent | null {
+  const homeName = ABBREV_TO_NAME[home];
+  const awayName = ABBREV_TO_NAME[away];
+  if (!homeName || !awayName) return null;
+  const target = new Date(scheduledAt).getTime();
+  const candidates = events.filter(
+    (e) =>
+      ((e.home_team === homeName && e.away_team === awayName) ||
+        (e.home_team === awayName && e.away_team === homeName)) &&
+      Math.abs(new Date(e.commence_time).getTime() - target) < 24 * 60 * 60 * 1000,
+  );
+  candidates.sort(
+    (a, b) =>
+      Math.abs(new Date(a.commence_time).getTime() - target) -
+      Math.abs(new Date(b.commence_time).getTime() - target),
+  );
+  return candidates[0] ?? null;
+}
+
+function pickPlayerProp(
+  lines: ParsedPlayerLine[],
+  home: TeamClubData,
+  away: TeamClubData,
+): {
+  stat: ParsedPlayerLine["stat"];
+  line: number;
+  player_name: string;
+  player_team: string;
+  player_id: number;
+  player_headshot: string;
+} | null {
+  const statRank: Record<ParsedPlayerLine["stat"], number> = { goals: 0, shots_on_goal: 1, points: 2 };
+
+  const grouped = new Map<string, { player: string; stat: ParsedPlayerLine["stat"]; lines: number[] }>();
+  for (const l of lines) {
+    const k = `${l.player}|${l.stat}`;
+    const entry = grouped.get(k);
+    if (entry) entry.lines.push(l.line);
+    else grouped.set(k, { player: l.player, stat: l.stat, lines: [l.line] });
   }
 
-  // ===== Second prop: totals or game winner =====
-  // Weighted: PIM 40%, Goals 40%, Game Winner 20%
-  const secondOptions: PropSpec[] = [
-    { kind: "total_pim", line: pimLine },
-    { kind: "total_pim", line: pimLine },
-    { kind: "total_goals", line: goalsLine },
-    { kind: "total_goals", line: goalsLine },
-    { kind: "game_winner" },
-  ];
-  picks.push(pickRandom(secondOptions));
+  const candidates = Array.from(grouped.values())
+    .map((g) => {
+      const sorted = [...g.lines].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      return { player: g.player, stat: g.stat, line: median };
+    })
+    .filter((c) => {
+      if (c.stat === "goals") return c.line === 0.5 || c.line === 1.5;
+      if (c.stat === "shots_on_goal") return c.line >= 1.5 && c.line <= 4.5;
+      if (c.stat === "points") return c.line >= 0.5 && c.line <= 2.5;
+      return false;
+    })
+    .sort((a, b) => statRank[a.stat] - statRank[b.stat]);
 
-  return picks;
+  for (const c of candidates) {
+    const match = findSkaterByName(c.player, home, away);
+    if (!match) continue;
+    return {
+      stat: c.stat,
+      line: c.line,
+      player_name: `${match.player.firstName?.default ?? ""} ${match.player.lastName?.default ?? ""}`.trim(),
+      player_team: match.team.abbrev,
+      player_id: match.player.playerId,
+      player_headshot: headshotUrl(match.player.playerId, match.team.abbrev),
+    };
+  }
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -261,8 +305,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const leaguePimAvg = await getLeaguePlayoffPimAverage(supabase);
-  const leagueGoalsBaseline = 5.5;
+  const oddsEvents = await fetchOddsApiEvents();
+  const oddsAvailable = oddsEvents.length > 0;
   const results: any[] = [];
 
   for (const g of games) {
@@ -308,126 +352,76 @@ export async function POST(request: Request) {
     );
 
     const [homeData, awayData] = await Promise.all([fetchClubData(home), fetchClubData(away)]);
-    if (!homeData || !awayData) {
-      results.push({ game: gameLabel, status: "skipped (club data fetch failed)" });
-      continue;
-    }
 
-    // Simple, deterministic: combined regular-season PIM/GP. Clamped to fair range.
-    const seasonPim = (homeData.teamPimPerGame ?? 0) + (awayData.teamPimPerGame ?? 0);
-    const pimLine = clampPimLine(seasonPim > 0 ? seasonPim : leaguePimAvg);
-
-    const seasonGoals = (homeData.teamGoalsPerGame ?? 0) + (awayData.teamGoalsPerGame ?? 0);
-    const goalsRaw = seasonGoals > 0 ? 0.5 * seasonGoals + 0.5 * leagueGoalsBaseline : leagueGoalsBaseline;
-    const goalsLine = clampGoalsLine(goalsRaw);
-
-    const specs = chooseProps(homeData, awayData, pimLine, goalsLine);
     const propsToInsert: any[] = [];
     const descriptions: string[] = [];
 
-    for (const spec of specs) {
-      switch (spec.kind) {
-        case "h2h_points":
-        case "h2h_shots":
-        case "h2h_pim": {
-          const stat = spec.kind === "h2h_points" ? "points" : spec.kind === "h2h_shots" ? "shots" : "pim";
-          propsToInsert.push({
-            prop_type: "h2h_player",
-            status: "open",
-            points_reward: 5,
-            game_id: gameId,
-            locks_at: lockTime,
-            metadata: {
-              stat,
-              game_label: gameLabel,
-              player_a_name: playerName(spec.a),
-              player_a_team: away,
-              player_a_id: spec.a.playerId,
-              player_a_headshot: headshotUrl(spec.a.playerId, away),
-              player_b_name: playerName(spec.b),
-              player_b_team: home,
-              player_b_id: spec.b.playerId,
-              player_b_headshot: headshotUrl(spec.b.playerId, home),
-            },
-          });
-          descriptions.push(`H2H ${stat}: ${playerName(spec.a)} vs ${playerName(spec.b)}`);
-          break;
-        }
-        case "h2h_saves": {
-          propsToInsert.push({
-            prop_type: "h2h_goalie",
-            status: "open",
-            points_reward: 5,
-            game_id: gameId,
-            locks_at: lockTime,
-            metadata: {
-              stat: "saves",
-              game_label: gameLabel,
-              player_a_name: playerName(spec.a),
-              player_a_team: away,
-              player_a_id: spec.a.playerId,
-              player_a_headshot: headshotUrl(spec.a.playerId, away),
-              player_b_name: playerName(spec.b),
-              player_b_team: home,
-              player_b_id: spec.b.playerId,
-              player_b_headshot: headshotUrl(spec.b.playerId, home),
-            },
-          });
-          descriptions.push(`Goalie duel: ${playerName(spec.a)} vs ${playerName(spec.b)}`);
-          break;
-        }
-        case "total_pim": {
-          propsToInsert.push({
-            prop_type: "game_total_pim",
-            status: "open",
-            points_reward: 5,
-            game_id: gameId,
-            locks_at: lockTime,
-            metadata: {
-              line: String(spec.line),
-              game_label: gameLabel,
-              home_team: home,
-              away_team: away,
-            },
-          });
-          descriptions.push(`Total PIM O/U ${spec.line}`);
-          break;
-        }
-        case "total_goals": {
-          propsToInsert.push({
-            prop_type: "game_total_goals",
-            status: "open",
-            points_reward: 5,
-            game_id: gameId,
-            locks_at: lockTime,
-            metadata: {
-              line: String(spec.line),
-              game_label: gameLabel,
-              home_team: home,
-              away_team: away,
-            },
-          });
-          descriptions.push(`Total Goals O/U ${spec.line}`);
-          break;
-        }
-        case "game_winner": {
-          propsToInsert.push({
-            prop_type: "game_winner",
-            status: "open",
-            points_reward: 5,
-            game_id: gameId,
-            locks_at: lockTime,
-            metadata: {
-              game_label: gameLabel,
-              home_team: home,
-              away_team: away,
-            },
-          });
-          descriptions.push("Game winner");
-          break;
+    let playerOuBuilt = false;
+    if (oddsAvailable && homeData && awayData) {
+      const event = matchOddsEventToGame(oddsEvents, home, away, lockTime);
+      if (event) {
+        const lines = await fetchOddsApiPlayerProps(event.id);
+        if (lines.length > 0) {
+          const pick = pickPlayerProp(lines, homeData, awayData);
+          if (pick) {
+            propsToInsert.push({
+              prop_type: "player_ou",
+              status: "open",
+              points_reward: 5,
+              game_id: gameId,
+              locks_at: lockTime,
+              metadata: {
+                stat: pick.stat,
+                line: String(pick.line),
+                game_label: gameLabel,
+                home_team: home,
+                away_team: away,
+                player_name: pick.player_name,
+                player_team: pick.player_team,
+                player_id: pick.player_id,
+                player_headshot: pick.player_headshot,
+              },
+            });
+            descriptions.push(`Player O/U: ${pick.player_name} ${pick.stat} ${pick.line}`);
+            playerOuBuilt = true;
+          }
         }
       }
     }
+
+    if (!playerOuBuilt) {
+      const seasonGoals = (homeData?.teamGoalsPerGame ?? 0) + (awayData?.teamGoalsPerGame ?? 0);
+      const goalsRaw = seasonGoals > 0 ? 0.5 * seasonGoals + 0.5 * 5.5 : 5.5;
+      const goalsLine = clampGoalsLine(goalsRaw);
+      propsToInsert.push({
+        prop_type: "game_total_goals",
+        status: "open",
+        points_reward: 5,
+        game_id: gameId,
+        locks_at: lockTime,
+        metadata: {
+          line: String(goalsLine),
+          game_label: gameLabel,
+          home_team: home,
+          away_team: away,
+        },
+      });
+      descriptions.push(`Total Goals O/U ${goalsLine} (fallback)`);
+    }
+
+    propsToInsert.push({
+      prop_type: "game_winner",
+      status: "open",
+      points_reward: 5,
+      game_id: gameId,
+      locks_at: lockTime,
+      metadata: {
+        game_label: gameLabel,
+        home_team: home,
+        away_team: away,
+      },
+    });
+    descriptions.push("Game winner");
 
     const { error: insertError } = await supabase.from("props").insert(propsToInsert);
     if (insertError) {
@@ -437,5 +431,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, date: dateParam, results });
+  return NextResponse.json({ ok: true, date: dateParam, oddsAvailable, results });
 }
