@@ -288,7 +288,7 @@ type SoloPick = {
 
 type H2HPick = {
   kind: "h2h";
-  stat: "shots" | "points";
+  stat: "shots" | "points" | "goals";
   line: number;
   player_a_name: string; player_a_team: string; player_a_id: number; player_a_headshot: string;
   player_b_name: string; player_b_team: string; player_b_id: number; player_b_headshot: string;
@@ -299,6 +299,7 @@ function pickPlayerProp(
   lines: ParsedPlayerLine[],
   home: TeamClubData,
   away: TeamClubData,
+  recentPlayerIds: Set<number> = new Set(),
 ): SoloPick | H2HPick | null {
   const candidates = buildCandidates(lines);
   if (candidates.length === 0) return null;
@@ -317,33 +318,36 @@ function pickPlayerProp(
     });
   }
 
-  // H2H pass: pairs (one player per team) with SAME stat + SAME line. Skip goals.
+  // H2H: pairs (one player per team) with SAME stat + SAME line. All 3 stats eligible.
   const homeCands = tagged.filter((c) => c.teamAbbrev === home.abbrev);
   const awayCands = tagged.filter((c) => c.teamAbbrev === away.abbrev);
   type Pair = { home: Tagged; away: Tagged; weight: number; coverage: number };
-  const pairs: Pair[] = [];
+  const pairsByStat = new Map<ParsedPlayerLine["stat"], Pair[]>();
   for (const h of homeCands) {
-    if (h.stat === "goals") continue;
     for (const a of awayCands) {
       if (a.stat !== h.stat) continue;
       if (a.line !== h.line) continue;
-      pairs.push({
-        home: h,
-        away: a,
-        weight: h.books + a.books,
-        coverage: h.playerCoverage + a.playerCoverage,
-      });
+      const recency = recentPlayerIds.has(h.nhlPlayerId) || recentPlayerIds.has(a.nhlPlayerId) ? 0.4 : 1.0;
+      const weight = (h.books + a.books) * recency;
+      const coverage = (h.playerCoverage + a.playerCoverage) * recency;
+      const arr = pairsByStat.get(h.stat) ?? [];
+      arr.push({ home: h, away: a, weight, coverage });
+      pairsByStat.set(h.stat, arr);
     }
   }
 
-  if (pairs.length > 0) {
+  const availableStats = Array.from(pairsByStat.keys()).filter((s) => (pairsByStat.get(s)?.length ?? 0) > 0);
+  if (availableStats.length > 0) {
+    // Random stat selection: goals/shots/points get equal chance per game
+    const statChoice = availableStats[Math.floor(Math.random() * availableStats.length)];
+    const pairs = pairsByStat.get(statChoice)!;
     pairs.sort((x, y) => y.coverage - x.coverage || y.weight - x.weight);
-    const topPairs = pairs.slice(0, Math.min(5, pairs.length));
+    const topPairs = pairs.slice(0, Math.min(10, pairs.length));
     const pool = topPairs.map((p) => ({ ...p, books: p.weight }));
     const chosen = weightedRandom(pool);
     return {
       kind: "h2h",
-      stat: chosen.home.stat === "shots_on_goal" ? "shots" : "points",
+      stat: chosen.home.stat === "shots_on_goal" ? "shots" : chosen.home.stat === "goals" ? "goals" : "points",
       line: chosen.home.line,
       player_a_name: chosen.away.resolvedName,
       player_a_team: chosen.away.teamAbbrev,
@@ -413,6 +417,21 @@ export async function POST(request: Request) {
   const oddsAvailable = oddsEvents.length > 0;
   const results: any[] = [];
 
+  // Recency: collect player_ids used in the last 5 days; picker deprioritizes them
+  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+  const recentPlayerIds = new Set<number>();
+  const { data: recentProps } = await supabase
+    .from("props")
+    .select("metadata")
+    .in("prop_type", ["player_ou", "h2h_player"])
+    .gte("locks_at", fiveDaysAgo);
+  for (const rp of recentProps ?? []) {
+    const m = rp.metadata as any;
+    if (typeof m?.player_id === "number") recentPlayerIds.add(m.player_id);
+    if (typeof m?.player_a_id === "number") recentPlayerIds.add(m.player_a_id);
+    if (typeof m?.player_b_id === "number") recentPlayerIds.add(m.player_b_id);
+  }
+
   for (const g of games) {
     const home = g.homeTeam.abbrev;
     const away = g.awayTeam.abbrev;
@@ -469,7 +488,7 @@ export async function POST(request: Request) {
       if (event) {
         const lines = await fetchOddsApiPlayerProps(event.id);
         if (lines.length > 0) {
-          const pick = pickPlayerProp(lines, homeData, awayData);
+          const pick = pickPlayerProp(lines, homeData, awayData, recentPlayerIds);
           if (dryRun) {
             const allCands = buildCandidates(lines)
               .sort((a, b) => b.playerCoverage - a.playerCoverage || b.books - a.books)

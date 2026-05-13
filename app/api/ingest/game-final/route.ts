@@ -152,6 +152,8 @@ export async function POST(request: Request) {
         if (!entry) return 0;
         if (stat === "pim") return entry[1]?.pim ?? 0;
         if (stat === "shots") return entry[1]?.shots ?? 0;
+        if (stat === "goals") return entry[1]?.goals ?? 0;
+        if (stat === "assists") return entry[1]?.assists ?? 0;
         return entry[1]?.points ?? 0;
       };
       const aVal = readStat(aEntry);

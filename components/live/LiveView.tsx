@@ -345,9 +345,11 @@ function RinkCard({ prop, allPropPicks, users, currentUserId, game, onChipClick 
     if (h2hStat === "pim") return p.pim ?? 0;
     if (h2hStat === "saves") return (p as any).saves ?? 0;
     if (h2hStat === "shots") return (p as any).shots ?? 0;
+    if (h2hStat === "goals") return p.goals ?? 0;
+    if (h2hStat === "assists") return p.assists ?? 0;
     return p.points ?? 0;
   };
-  const h2hStatUnit = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : "PTS";
+  const h2hStatUnit = h2hStat === "pim" ? "PIM" : h2hStat === "saves" ? "SV" : h2hStat === "shots" ? "SOG" : h2hStat === "goals" ? "G" : h2hStat === "assists" ? "A" : "PTS";
 
   let totalContext: string | null = null;
   if (prop.prop_type === "game_total_pim") {
@@ -696,6 +698,8 @@ function getPropBadge(prop: Prop): { text: string; color: string } {
     const stat = prop.metadata?.stat;
     if (stat === "pim") return { text: "PIM DUEL", color: "text-rink-red" };
     if (stat === "shots") return { text: "SHOTS DUEL", color: "text-cyan-400" };
+    if (stat === "goals") return { text: "GOALS DUEL", color: "text-emerald-400" };
+    if (stat === "assists") return { text: "ASSISTS DUEL", color: "text-amber-400" };
     return { text: "POINTS DUEL", color: "text-brand" };
   }
   if (prop.prop_type === "h2h_goalie") return { text: "SAVES DUEL", color: "text-rink-gold" };
@@ -794,7 +798,7 @@ function PropResultBanner({ prop, game }: { prop: Prop; game: Game }) {
     const bPts = outcome.player_b_value ?? outcome.player_b_pts ?? 0;
     const winner = outcome.winner;
     const isTie = winner === "tie";
-    const sLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : "pts";
+    const sLabel = outcome.stat === "saves" ? "sv" : outcome.stat === "pim" ? "pim" : outcome.stat === "shots" ? "sog" : outcome.stat === "goals" ? "g" : outcome.stat === "assists" ? "a" : "pts";
 
     return (
       <div className="border-t border-ink-700/40 bg-gradient-to-r from-ink-900/60 via-ink-850 to-ink-900/60 px-5 py-3">
