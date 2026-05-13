@@ -78,7 +78,15 @@ export default function RulesPage() {
       </Section>
 
       <div className="py-10 text-center">
-        <p className="text-xs text-ink-500">
+        <form action="/auth/signout" method="POST">
+          <button
+            type="submit"
+            className="rounded-xl border border-ink-700 bg-ink-850 px-5 py-2.5 font-mono text-[11px] font-bold uppercase tracking-wider text-ink-300 transition active:scale-[0.98] hover:border-ink-600"
+          >
+            Sign out
+          </button>
+        </form>
+        <p className="mt-6 text-xs text-ink-500">
           Built for the boys · 2026 playoffs
         </p>
       </div>
